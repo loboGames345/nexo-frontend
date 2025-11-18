@@ -1,0 +1,1124 @@
+/* src/App.css */
+
+/* --- 1. DEFINICIÓN DE COLORES (Variables CSS) --- */
+
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f9f9f9;
+  --bg-tertiary: #f0f0f0;
+  --bg-hover: #e9e9e9;
+  --bg-selected: #d4edda;
+  --bg-modal: rgba(0, 0, 0, 0.6);
+
+  --text-primary: #111111;
+  --text-secondary: #777777;
+  --text-inverted: #ffffff;
+  --text-danger: #dc3545;
+
+  --border-color: #cccccc;
+  --border-light: #eeeeee;
+
+  --accent-primary: #007bff;
+  --accent-primary-hover: #0069d9;
+  --accent-safe: #28a745;
+  --accent-danger: #dc3545;
+  --accent-danger-hover: #c82333;
+
+  --bg-warn: #fffbe6;
+  --border-warn: #ffe58f;
+  
+  --online-color: #28a745;
+
+  /* Scrollbar colors */
+  --scrollbar-thumb: #cccccc;
+  --scrollbar-track: transparent;
+}
+
+/* Tema Oscuro */
+.dark-mode {
+  --bg-primary: #1e1e1e;
+  --bg-secondary: #2a2a2a;
+  --bg-tertiary: #333333;
+  --bg-hover: #444444;
+  --bg-selected: #2a4a33;
+  --bg-modal: rgba(0, 0, 0, 0.8);
+  
+  --text-primary: #f1f1f1;
+  --text-secondary: #aaaaaa;
+  --text-inverted: #111111;
+  --text-danger: #ff6b7b;
+
+  --border-color: #555555;
+  --border-light: #444444;
+
+  --accent-primary: #007bff;
+  --accent-primary-hover: #0069d9;
+  --accent-safe: #28a745;
+  --accent-danger: #ff6b7b;
+  --accent-danger-hover: #e0606e;
+
+  --bg-warn: #4d442a;
+  --border-warn: #80703c;
+  
+  --online-color: #33c054;
+
+  /* Scrollbar colors dark */
+  --scrollbar-thumb: #555555;
+}
+
+/* --- 2. ESTILOS GLOBALES Y SCROLLBAR --- */
+
+/* Para Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* Para Chrome, Edge, Safari */
+::-webkit-scrollbar {
+  width: 8px; /* Ancho de la barra vertical */
+  height: 8px; /* Alto de la barra horizontal */
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track); 
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 10px; /* Bordes redondeados */
+  border: 2px solid transparent; /* Truco para dar espacio alrededor */
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-secondary); /* Color al pasar el mouse */
+}
+
+
+/* --- 3. REFACTORIZACIÓN DE ESTILOS GENERALES --- */
+
+.App {
+  font-family: Arial, sans-serif;
+  padding: 20px;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh; 
+}
+
+.App h1 {
+  text-align: center;
+}
+
+.app-slogan {
+  text-align: center;
+  font-size: 1.2rem;
+  color: var(--text-secondary);
+  margin-top: -10px;
+  margin-bottom: 30px;
+}
+
+
+/* --- Estilos para el Recuadro de Login --- */
+.auth-container {
+  max-width: 400px;
+  margin: 40px auto 0 auto;
+  padding: 20px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+.auth-container h2 {
+  text-align: center;
+  margin-top: 20px;
+}
+.auth-container input {
+  width: calc(100% - 24px);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  padding: 12px;
+  font-size: 1.1rem;
+}
+.auth-tabs {
+  display: flex;
+  margin: -20px -20px 0 -20px;
+}
+.auth-tab {
+  flex: 1;
+  padding: 15px;
+  border: none;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 1.1rem;
+}
+.auth-tab.active {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-weight: bold;
+}
+.password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.password-wrapper input {
+  width: 100%;
+}
+.password-toggle-icon {
+  position: absolute;
+  right: 5px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 8px;
+  font-size: 1rem;
+}
+.auth-buttons {
+  display: flex;
+  margin-top: 20px;
+}
+.auth-buttons button {
+  width: 100%;
+  background: var(--accent-primary);
+  color: var(--text-inverted);
+  border: none;
+  padding: 14px;
+  font-size: 1.1rem;
+  font-weight: bold;
+}
+.auth-buttons button:hover {
+  background: var(--accent-primary-hover);
+}
+.theme-toggle-auth {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
+}
+.theme-toggle-auth button {
+  width: 100%;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+.theme-toggle-auth button:hover {
+  background: var(--bg-hover);
+}
+.online-users-counter {
+  text-align: center;
+  margin-top: 20px;
+  color: var(--text-secondary);
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.online-dot {
+  width: 10px;
+  height: 10px;
+  background-color: var(--online-color);
+  border-radius: 50%;
+  margin-right: 8px;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+}
+.dark-mode @keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(51, 192, 84, 0.4); }
+  70% { box-shadow: 0 0 0 10px rgba(51, 192, 84, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(51, 192, 84, 0); }
+}
+
+
+/* --- Barra de Usuario --- */
+.user-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background: var(--bg-tertiary);
+  border-radius: 5px;
+  margin-bottom: 15px;
+  position: relative;
+}
+.user-avatar-small {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid var(--border-color);
+  margin-right: 10px;
+  object-fit: cover;
+  background: var(--bg-primary);
+  cursor: pointer;
+  transition: filter 0.2s;
+}
+.user-avatar-small:hover {
+  filter: brightness(0.8);
+}
+.user-controls span {
+  font-weight: bold;
+}
+.options-button {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+.dark-mode .options-button {
+  background: var(--bg-hover);
+  border-color: var(--border-light);
+  color: var(--text-primary);
+}
+.user-panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  z-index: 20;
+  width: 200px;
+  padding: 5px;
+}
+.user-panel button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px;
+  background: none;
+  color: var(--text-primary);
+  border: none;
+  margin: 0;
+  border-radius: 3px;
+}
+.user-panel button:hover {
+  background: var(--bg-hover);
+}
+.user-panel button.delete {
+  background: none;
+  color: var(--text-danger);
+}
+.user-panel button.delete:hover {
+  background: var(--bg-tertiary);
+  color: var(--accent-danger-hover);
+}
+
+/* --- Estilos de Subida --- */
+.profile-uploader-wrapper {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+  margin: 0 auto 10px auto; /* ¡Centrado! */
+  padding: 0;
+}
+.avatar-loading {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  border: 2px solid var(--border-color);
+  margin-bottom: 10px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  text-align: center;
+  padding: 2px;
+  box-sizing: border-box;
+  margin: 0 auto 10px auto; /* ¡Centrado! */
+}
+
+/* --- Estilos para el Chat --- */
+
+.chat-layout {
+  display: flex;
+  border: 1px solid var(--border-color);
+  height: 70vh;
+}
+.conversations-list {
+  flex: 0 0 250px;
+  border-right: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.conversations-list h3 {
+  padding: 10px;
+  margin: 0;
+  border-bottom: 1px solid var(--border-color);
+}
+.conversations-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.conversations-list li {
+  padding: 10px;
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.conversations-list li:hover {
+  background: var(--bg-hover);
+}
+.conversations-list li.selected {
+  background: var(--bg-selected);
+  font-weight: bold;
+}
+.conv-name-wrapper {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.conv-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-grow: 1;
+}
+.unread-badge {
+  background: var(--accent-primary);
+  color: var(--text-inverted);
+  font-size: 0.75rem;
+  font-weight: bold;
+  padding: 3px 7px;
+  border-radius: 10px;
+  margin-left: 5px;
+  flex-shrink: 0;
+}
+.avatar-in-list {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  margin-right: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bg-tertiary);
+  padding: 2px;
+  box-sizing: border-box;
+}
+.avatar-in-list.online {
+  border: 2px solid var(--online-color);
+}
+.avatar-in-list.offline {
+  border: 2px solid var(--border-color);
+}
+.chat-window {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  height: 100%;
+  background: var(--bg-primary);
+}
+.chat-window-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+.chat-window-header h4 {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+}
+.chat-header-options {
+  display: flex;
+}
+.chat-header-options button {
+  font-size: 0.8em;
+  padding: 4px 8px;
+  margin-left: 5px;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.chat-header-options .view-members-btn {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+.chat-header-options .view-members-btn:hover {
+  background: var(--bg-hover);
+}
+.chat-header-options .delete-btn {
+  background: var(--bg-tertiary);
+  color: var(--text-danger);
+  border: 1px solid var(--border-color);
+}
+.chat-header-options .delete-btn:hover {
+  background: var(--bg-hover);
+}
+.chat-header-options .block-btn {
+  background: var(--accent-danger);
+  color: var(--text-inverted);
+}
+.chat-header-options .block-btn:hover {
+  background: var(--accent-danger-hover);
+}
+.chat-header-options .group-settings-btn {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+.chat-header-options .group-settings-btn:hover {
+  background: var(--bg-hover);
+}
+.chat-window > p {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+.message-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  padding-bottom: 70px;
+}
+
+/* --- Estilos para mensajes del sistema --- */
+.system-message {
+    text-align: center;
+    margin: 10px 0;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+.system-message span {
+    background-color: var(--bg-tertiary);
+    padding: 4px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border-light);
+}
+
+
+.message {
+  display: flex;
+  margin-bottom: 15px;
+  max-width: 80%;
+  align-self: flex-start;
+}
+.message.sent {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+.message-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-right: 10px;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+.message.sent .message-avatar {
+  margin-right: 0;
+  margin-left: 10px;
+}
+.message-content {
+  background: var(--bg-tertiary);
+  padding: 8px 12px;
+  border-radius: 10px;
+}
+.message-content.no-avatar {
+  margin-left: 42px;
+}
+.message.sent .message-content.no-avatar {
+  margin-left: 0;
+  margin-right: 42px;
+}
+.message.sent .message-content {
+  background: var(--accent-primary);
+  color: var(--text-inverted);
+}
+.message-content strong {
+  display: block;
+  font-size: 0.9em;
+  color: var(--accent-primary);
+  margin-bottom: 3px;
+}
+.message.sent .message-content strong {
+  color: var(--text-inverted);
+}
+.message-content p {
+  margin: 0;
+}
+.message-input-area {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  padding: 10px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+}
+.message-input-area input {
+  flex: 1;
+  margin: 0;
+  border-radius: 5px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  padding: 12px;
+  font-size: 1.1rem;
+}
+.message-input-area button {
+  margin: 0 0 0 10px;
+  border: none;
+  background: var(--accent-primary);
+  color: var(--text-inverted);
+  border-radius: 5px;
+  padding: 0 20px;
+  font-size: 1.1rem;
+  font-weight: bold;
+}
+.message-input-area button:hover {
+  background: var(--accent-primary-hover);
+}
+
+/* --- Estilos para la Búsqueda --- */
+
+.create-group-wrapper {
+  padding: 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+.create-group-btn {
+  width: 100%;
+  padding: 12px;
+  background: var(--accent-safe);
+  color: var(--text-inverted);
+  border: none;
+  border-radius: 5px;
+  font-weight: bold;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.create-group-btn:hover {
+  opacity: 0.9;
+}
+.search-area {
+  padding: 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+.search-area input {
+  width: calc(100% - 20px);
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+.search-results {
+  list-style: none;
+  padding: 0;
+  margin: 5px 0 0 0;
+}
+.search-results li {
+  padding: 8px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+}
+.search-results li:hover {
+  background: var(--bg-hover);
+}
+.confirmation-box {
+  background: var(--bg-warn);
+  border: 1px solid var(--border-warn);
+  border-radius: 5px;
+  padding: 10px;
+  margin-top: 10px;
+  text-align: center;
+}
+.confirmation-box p {
+  margin: 0 0 10px 0;
+  font-size: 0.9em;
+}
+.confirmation-box button {
+  width: 48%;
+  font-size: 0.8em;
+  padding: 6px;
+}
+.confirmation-box button.cancel {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+/* --- Estilos para Solicitudes --- */
+.chat-requests {
+  border-bottom: 2px solid var(--border-color);
+}
+.chat-requests ul {
+  padding: 0;
+  margin: 0;
+}
+.chat-request-item {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 10px;
+}
+.chat-request-item button {
+  background: var(--accent-safe);
+  color: var(--text-inverted);
+  border: none;
+  padding: 4px 8px;
+  font-size: 0.8em;
+  border-radius: 3px;
+  margin-left: 10px;
+}
+.no-requests {
+  padding: 10px;
+  font-size: 0.9em;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+/* --- Estilos para MODALES (Todos) --- */
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg-modal);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+.modal-overlay.priority-modal {
+  z-index: 1001;
+}
+
+/* --- ¡AQUÍ ESTÁ LA CLASE NUEVA! --- */
+.modal-overlay.top-priority-modal {
+  z-index: 2000; /* ¡Nivel Supremo! Para Alertas y Errores */
+}
+
+.modal-content {
+  background: var(--bg-primary);
+  padding: 20px;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+.modal-content.success h2 {
+  color: var(--accent-safe);
+}
+.dark-mode .modal-content.success h2 {
+  color: var(--accent-safe);
+}
+.modal-content.info h2 {
+  color: var(--accent-primary);
+}
+.dark-mode .modal-content.info h2 {
+  color: var(--accent-primary);
+}
+.modal-content.delete-conv h2 {
+  color: var(--text-danger);
+}
+.modal-content.create-group h3 {
+  margin-bottom: 5px;
+  font-size: 1rem;
+}
+.modal-content .group-name-input {
+  width: calc(100% - 24px);
+  padding: 12px;
+  font-size: 1.1rem;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border-radius: 5px;
+  margin-bottom: 15px;
+}
+.friend-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 150px;
+  overflow-y: auto;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+}
+.friend-list li {
+  padding: 10px;
+  border-bottom: 1px solid var(--border-light);
+  justify-content: flex-start;
+}
+.friend-list li:last-child {
+  border-bottom: none;
+}
+.friend-list label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.friend-list input[type="checkbox"] {
+  width: auto;
+  margin-right: 10px;
+}
+.friend-list p {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 10px;
+}
+.members-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+}
+.members-list li {
+  padding: 10px;
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+}
+.members-list li:last-child {
+  border-bottom: none;
+}
+.members-list .admin-tag {
+  font-size: 0.8em;
+  font-weight: bold;
+  color: var(--text-secondary);
+  margin-left: 5px;
+}
+.add-members-section {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border-color);
+}
+.add-members-section h3 {
+  margin: 0 0 10px 0;
+  font-size: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+.add-members-section .toggle-arrow {
+  font-size: 0.8em;
+}
+.add-members-section .friend-list {
+  max-height: 100px;
+}
+.add-members-section .invite-btn {
+  width: 100%;
+  padding: 10px;
+  margin-top: 10px;
+  background: var(--accent-safe);
+  color: var(--text-inverted);
+  border: none;
+  border-radius: 5px;
+  font-weight: bold;
+}
+.add-members-section .invite-btn:disabled {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+}
+
+/* --- Estilos del Modal de Perfil y Ajustes de Grupo --- */
+
+.modal-content.profile-modal,
+.modal-content.group-settings-modal {
+  text-align: center;
+}
+.profile-modal-avatar {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  border: 3px solid var(--border-color);
+  object-fit: cover;
+  background: var(--bg-tertiary);
+  cursor: pointer;
+  transition: filter 0.2s;
+}
+.profile-modal-avatar:hover {
+  filter: brightness(0.8);
+}
+.profile-avatar-wrapper {
+  position: relative;
+  display: inline-block;
+  margin: 0 auto 10px auto;
+  cursor: pointer;
+}
+.edit-avatar-icon {
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border-radius: 50%;
+  padding: 6px;
+  font-size: 0.8rem;
+  border: 1px solid var(--border-color);
+  pointer-events: none;
+}
+.dark-mode .edit-avatar-icon {
+  background: var(--bg-tertiary);
+}
+
+.username-edit-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+  margin-bottom: 15px;
+}
+.username-edit-wrapper h3 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+.username-edit-wrapper .username-input {
+  font-size: 1.5rem;
+  font-weight: bold;
+  padding: 5px;
+  width: 180px;
+  text-align: center;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+.username-edit-wrapper .username-edit-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+.username-edit-wrapper .username-edit-btn:hover {
+  text-decoration: underline;
+}
+
+
+.profile-modal label {
+  display: block;
+  text-align: left;
+  margin-bottom: 5px;
+  font-size: 0.9em;
+  color: var(--text-secondary);
+  font-weight: bold;
+}
+.bio-textarea {
+  width: calc(100% - 24px);
+  height: 80px;
+  padding: 10px;
+  font-family: Arial, sans-serif;
+  font-size: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  resize: none;
+}
+.char-counter {
+  text-align: right;
+  font-size: 0.8em;
+  color: var(--text-secondary);
+  margin-top: 3px;
+  margin-bottom: 20px;
+}
+.group-settings-modal .username-input {
+  margin-top: 15px;
+  margin-bottom: 25px;
+  font-size: 1.3rem;
+  padding: 8px 12px;
+  width: 250px;
+}
+.group-settings-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+  width: 100%;
+}
+.group-settings-buttons button {
+  padding: 12px;
+  font-size: 1rem;
+  font-weight: bold;
+  border-radius: 5px;
+  cursor: pointer;
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  transition: background-color 0.2s;
+}
+.group-settings-buttons button:hover {
+  background: var(--bg-hover);
+}
+.group-settings-buttons .delete-btn {
+  color: var(--text-danger);
+  border-color: var(--border-color);
+  background: var(--bg-tertiary);
+}
+.group-settings-buttons .delete-btn:hover {
+  background: var(--bg-hover);
+  color: var(--accent-danger-hover);
+}
+
+
+/* --- Estilos de botones del Modal General --- */
+
+.modal-content h2 {
+  margin-top: 0;
+}
+.modal-content h2:first-child { 
+  color: var(--text-danger);
+}
+.dark-mode .modal-content h2 {
+  color: var(--text-primary);
+}
+.dark-mode .modal-content h2:first-child {
+  color: var(--text-danger);
+}
+.dark-mode .modal-content.delete-conv h2 {
+  color: var(--text-danger);
+}
+.modal-content p {
+  line-height: 1.5;
+}
+.modal-content .delete-confirm-input {
+  width: calc(100% - 24px);
+  padding: 10px;
+  font-size: 1rem;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border-radius: 5px;
+  margin-top: 5px;
+}
+.modal-content label {
+  font-size: 0.9em;
+  color: var(--text-secondary);
+}
+.modal-content ul {
+  list-style: disc;
+  margin-left: 20px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  padding: 10px 10px 10px 30px;
+}
+.modal-buttons {
+  margin-top: 20px;
+  display: flex;
+  justify-content: space-between;
+}
+.modal-buttons.single-button {
+  justify-content: center;
+}
+.modal-buttons.single-button button {
+  width: 100%;
+}
+.modal-buttons button {
+  width: 48%;
+  padding: 12px;
+  font-size: 1rem;
+  font-weight: bold;
+  border: none;
+  border-radius: 5px;
+}
+.modal-buttons .confirm-logout {
+  background: var(--accent-primary);
+  color: var(--text-inverted);
+}
+.modal-buttons .confirm-logout:hover {
+  background: var(--accent-primary-hover);
+}
+.modal-buttons .confirm-delete {
+  background: var(--accent-danger);
+  color: var(--text-inverted);
+}
+.modal-buttons .confirm-delete:hover {
+  background: var(--accent-danger-hover);
+}
+.modal-buttons .confirm-delete:disabled {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+}
+.modal-buttons .cancel-delete {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+/* NUEVO BOTÓN: Hacer Admin */
+.make-admin-btn {
+  background-color: #ffc107; /* Amarillo */
+  border: none;
+  border-radius: 4px;
+  padding: 5px 8px;
+  margin-left: 10px;
+  cursor: pointer;
+  font-size: 0.8em;
+  font-weight: bold;
+  color: #333;
+}
+.make-admin-btn:hover {
+  background-color: #e0a800;
+}
+
+/* NUEVO BOTÓN: Quitar Admin (Degradar) */
+.demote-admin-btn {
+  background-color: var(--accent-danger); /* Rojo */
+  border: none;
+  border-radius: 4px;
+  padding: 5px 8px;
+  margin-left: 10px;
+  cursor: pointer;
+  font-size: 0.8em;
+  font-weight: bold;
+  color: var(--text-inverted);
+  margin-right: 5px; /* Separación si hay otro botón */
+}
+.demote-admin-btn:hover {
+  background-color: var(--accent-danger-hover);
+}
+
+/* NUEVO BOTÓN: Expulsar (Kick) */
+.kick-btn {
+  background-color: #dc3545; /* Rojo estándar */
+  border: none;
+  border-radius: 4px;
+  padding: 5px 8px;
+  margin-left: 5px;
+  cursor: pointer;
+  font-size: 0.8em;
+  font-weight: bold;
+  color: white;
+}
+.kick-btn:hover {
+  background-color: #c82333;
+}
