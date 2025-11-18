@@ -8,7 +8,7 @@ import Chat from './components/Chat';
 import ProfileUploader from './components/ProfileUploader';
 import './App.css';
 
-const API_URL = 'http://localhost:5000';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 function App() {
   
