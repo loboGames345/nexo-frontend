@@ -1,6 +1,6 @@
 // src/App.js
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 import Auth from './components/Auth';
@@ -45,6 +45,22 @@ function App() {
   const [userCount, setUserCount] = useState(0);
   const [onlineUsersMap, setOnlineUsersMap] = useState({});
 
+  // --- ESTADO DE NOTIFICACIONES ---
+  const [notifications, setNotifications] = useState(() => {
+    const saved = localStorage.getItem('chat-notifications');
+    try {
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  
+  // --- ESTADO DE SOLICITUDES ---
+  const [chatRequests, setChatRequests] = useState([]);
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const [activeNotifTab, setActiveNotifTab] = useState('alerts'); // 'alerts' | 'requests'
+
+  // Cargar sesión
   useEffect(() => {
     const storedToken = sessionStorage.getItem('chat-token');
     const storedUsername = sessionStorage.getItem('chat-username');
@@ -61,12 +77,61 @@ function App() {
     }
   }, []);
 
+  // Cargar Solicitudes Pendientes al iniciar
+  useEffect(() => {
+    const fetchRequests = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/conversations`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            // Filtrar solo las que son pending y NO iniciadas por mí
+            const pending = response.data.filter(c => 
+                !c.isGroup && 
+                c.status === 'pending' && 
+                String(c.initiatedBy._id) !== String(userId)
+            );
+            setChatRequests(pending);
+        } catch (error) {
+            console.error("Error cargando solicitudes:", error);
+        }
+    };
+    if (token && userId) {
+        fetchRequests();
+    }
+  }, [token, userId]);
+
   useEffect(() => {
     localStorage.setItem('chat-theme', theme);
   }, [theme]);
   
+  useEffect(() => {
+    localStorage.setItem('chat-notifications', JSON.stringify(notifications));
+  }, [notifications]);
+
+  const handleAddNotification = useCallback((text) => {
+    const newNotif = {
+      id: Date.now() + Math.random(), 
+      text: text,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      read: false
+    };
+    setNotifications(prev => [newNotif, ...prev]);
+  }, []);
+
+  const toggleNotifPanel = () => {
+    if (!showNotifPanel) {
+      const markedAsRead = notifications.map(n => ({ ...n, read: true }));
+      setNotifications(markedAsRead);
+    }
+    setShowNotifPanel(!showNotifPanel);
+    setIsUserPanelOpen(false); 
+  };
+
+  const clearNotifications = () => {
+    setNotifications([]);
+  };
+
   // --- SOCKET GLOBAL ---
-  // Conectar siempre para recibir contador. Registrar usuario solo si hay token.
   useEffect(() => {
     const newSocket = io(API_URL);
     setSocket(newSocket);
@@ -78,13 +143,24 @@ function App() {
       setOnlineUsersMap(usersMap);
     });
 
+    // ESCUCHAR NUEVAS SOLICITUDES AQUÍ
+    newSocket.on('newChatRequest', (newRequest) => {
+        // Si no fui yo quien la inició, agregarla
+        if (newRequest.initiatedBy._id !== userId) {
+            setChatRequests(prev => {
+                if (prev.some(r => r._id === newRequest._id)) return prev;
+                return [...prev, newRequest];
+            });
+            handleAddNotification(`Nueva solicitud de amistad de ${newRequest.initiatedBy.username}`);
+        }
+    });
+
     return () => {
       newSocket.disconnect();
     };
-  }, []); // Se ejecuta una sola vez al montar la App
+  }, [userId, handleAddNotification]); 
 
   // --- REGISTRO EN SOCKET ---
-  // Este efecto corre cuando cambia userId o socket
   useEffect(() => {
     if (socket && userId) {
         socket.emit('registerUser', { userId, username });
@@ -191,13 +267,10 @@ function App() {
     setUserId(null);
     setProfilePicUrl('');
     setBio('');
-    // No desconectamos socket aquí, simplemente dejamos de emitir registerUser
-    // El backend notará que el socket ID anterior ya no está vinculado si se refresca, 
-    // o simplemente dejará de recibir mensajes privados.
-    // Para ser más limpios, podemos forzar una desconexión y reconexión rápida:
+    
     if (socket) {
         socket.disconnect();
-        socket.connect(); // Reconecta limpio (sin userId) para ver el contador
+        socket.connect(); 
     }
   }
 
@@ -231,6 +304,10 @@ function App() {
           'Authorization': `Bearer ${token}`
         }
       });
+      
+      localStorage.removeItem('chat-notifications');
+      setNotifications([]);
+
       setInfoModalMessage("Tu cuenta ha sido eliminada.");
       setShowInfoModal(true);
       closeDeleteModal();
@@ -243,6 +320,37 @@ function App() {
     }
   };
 
+  // --- ACEPTAR SOLICITUD DESDE NOTIFICACIONES ---
+  const handleAcceptRequest = async (conversationId) => {
+      try {
+        await axios.post(
+            `${API_URL}/conversations/${conversationId}/accept`,
+            {},
+            { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        setChatRequests(prev => prev.filter(req => req._id !== conversationId));
+        setShowNotifPanel(false);
+        handleShowInfo("Solicitud aceptada. El chat aparecerá en tu lista.");
+      } catch (error) {
+        handleShowInfo(error.response?.data?.message || "Error al aceptar.");
+      }
+  };
+
+  // --- RECHAZAR SOLICITUD DESDE NOTIFICACIONES ---
+  const handleRejectRequest = async (conversationId) => {
+    try {
+      await axios.post(
+          `${API_URL}/conversations/${conversationId}/reject`,
+          {},
+          { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      setChatRequests(prev => prev.filter(req => req._id !== conversationId));
+      handleShowInfo("Solicitud rechazada.");
+    } catch (error) {
+      handleShowInfo(error.response?.data?.message || "Error al rechazar.");
+    }
+  };
+
   const handleShowRequestSent = (username) => {
     setRequestSentToUser(username);
     setShowRequestSentModal(true);
@@ -252,6 +360,8 @@ function App() {
     setInfoModalMessage(message);
     setShowInfoModal(true);
   };
+
+  const unreadCount = notifications.filter(n => !n.read).length + chatRequests.length;
 
 
   return (
@@ -447,12 +557,106 @@ function App() {
 
             <span>¡Bienvenido, {username}!</span>
             
-            <button 
-              className="options-button"
-              onClick={() => setIsUserPanelOpen(!isUserPanelOpen)}
-            >
-              Opciones ⚙️
-            </button>
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+              
+              {/* --- BOTÓN DE NOTIFICACIONES --- */}
+              <div className="notification-wrapper">
+                <button className="notification-btn" onClick={toggleNotifPanel}>
+                  🔔
+                  {unreadCount > 0 && <span className="notification-badge"></span>}
+                </button>
+
+                {showNotifPanel && (
+                  <div className="notification-panel">
+                    
+                    {/* PESTAÑAS */}
+                    <div className="notif-tabs">
+                        <button 
+                            className={`notif-tab ${activeNotifTab === 'alerts' ? 'active' : ''}`}
+                            onClick={() => setActiveNotifTab('alerts')}
+                        >
+                            Avisos ({notifications.filter(n => !n.read).length})
+                        </button>
+                        <button 
+                            className={`notif-tab ${activeNotifTab === 'requests' ? 'active' : ''}`}
+                            onClick={() => setActiveNotifTab('requests')}
+                        >
+                            Solicitudes ({chatRequests.length})
+                        </button>
+                    </div>
+
+                    {activeNotifTab === 'alerts' ? (
+                        <>
+                            <div className="notification-header">
+                            <h3>Avisos</h3>
+                            <button className="clear-notifs-btn" onClick={clearNotifications}>
+                                Borrar todo
+                            </button>
+                            </div>
+                            <ul className="notification-list">
+                            {notifications.length === 0 ? (
+                                <li className="empty-notifs">No tienes avisos.</li>
+                            ) : (
+                                notifications.map(notif => (
+                                <li key={notif.id} className={`notification-item ${notif.read ? 'read' : 'unread'}`}>
+                                    <span>{notif.text}</span>
+                                    <span className="notif-time">{notif.time}</span>
+                                </li>
+                                ))
+                            )}
+                            </ul>
+                        </>
+                    ) : (
+                        <>
+                            <div className="notification-header">
+                                <h3>Solicitudes de Chat</h3>
+                            </div>
+                            <ul className="notification-list">
+                                {chatRequests.length === 0 ? (
+                                    <li className="empty-notifs">No tienes solicitudes pendientes.</li>
+                                ) : (
+                                    chatRequests.map(req => (
+                                        <li key={req._id} className="request-item">
+                                            <div className="request-info">
+                                                <span className="request-username">{req.initiatedBy.username}</span>
+                                                <span className="request-text">Quiere chatear contigo</span>
+                                            </div>
+                                            <div style={{display: 'flex', gap: '5px'}}>
+                                              <button 
+                                                  className="accept-btn"
+                                                  style={{backgroundColor: 'var(--accent-safe)'}}
+                                                  onClick={() => handleAcceptRequest(req._id)}
+                                              >
+                                                  Aceptar
+                                              </button>
+                                              <button 
+                                                  className="accept-btn"
+                                                  style={{backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)'}}
+                                                  onClick={() => handleRejectRequest(req._id)}
+                                              >
+                                                  Rechazar
+                                              </button>
+                                            </div>
+                                        </li>
+                                    ))
+                                )}
+                            </ul>
+                        </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <button 
+                className="options-button"
+                onClick={() => {
+                  setIsUserPanelOpen(!isUserPanelOpen);
+                  setShowNotifPanel(false);
+                }}
+              >
+                Opciones ⚙️
+              </button>
+            </div>
 
             {isUserPanelOpen && (
               <div className="user-panel">
@@ -476,6 +680,8 @@ function App() {
             onShowRequestSent={handleShowRequestSent}
             onShowInfo={handleShowInfo}
             onlineUsersMap={onlineUsersMap}
+            // Pasar la función para añadir notificaciones
+            onAddNotification={handleAddNotification}
           />
         </div>
       )}

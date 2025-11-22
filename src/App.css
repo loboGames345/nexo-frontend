@@ -68,16 +68,15 @@
 
 /* --- 2. ESTILOS GLOBALES Y SCROLLBAR --- */
 
-/* Para Firefox */
 * {
+  box-sizing: border-box;
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
-/* Para Chrome, Edge, Safari */
 ::-webkit-scrollbar {
-  width: 8px; /* Ancho de la barra vertical */
-  height: 8px; /* Alto de la barra horizontal */
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
@@ -86,17 +85,14 @@
 
 ::-webkit-scrollbar-thumb {
   background-color: var(--scrollbar-thumb);
-  border-radius: 10px; /* Bordes redondeados */
-  border: 2px solid transparent; /* Truco para dar espacio alrededor */
+  border-radius: 10px;
+  border: 2px solid transparent;
   background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: var(--text-secondary); /* Color al pasar el mouse */
+  background-color: var(--text-secondary);
 }
-
-
-/* --- 3. REFACTORIZACIÓN DE ESTILOS GENERALES --- */
 
 .App {
   font-family: Arial, sans-serif;
@@ -104,6 +100,7 @@
   background-color: var(--bg-primary);
   color: var(--text-primary);
   min-height: 100vh; 
+  transition: background-color 0.3s, color 0.3s;
 }
 
 .App h1 {
@@ -118,8 +115,7 @@
   margin-bottom: 30px;
 }
 
-
-/* --- Estilos para el Recuadro de Login --- */
+/* --- Estilos para el Recuadro de Login/Auth --- */
 .auth-container {
   max-width: 400px;
   margin: 40px auto 0 auto;
@@ -135,17 +131,18 @@
   margin-top: 20px;
 }
 .auth-container input {
-  width: calc(100% - 24px);
+  width: 100%;
   background: var(--bg-primary);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
   border-radius: 5px;
   padding: 12px;
   font-size: 1.1rem;
+  margin-bottom: 10px;
 }
 .auth-tabs {
   display: flex;
-  margin: -20px -20px 0 -20px;
+  margin: -20px -20px 20px -20px;
 }
 .auth-tab {
   flex: 1;
@@ -160,14 +157,16 @@
   background: var(--bg-primary);
   color: var(--text-primary);
   font-weight: bold;
+  border-bottom: 2px solid var(--accent-primary);
 }
 .password-wrapper {
   position: relative;
   display: flex;
   align-items: center;
+  margin-bottom: 10px;
 }
 .password-wrapper input {
-  width: 100%;
+  margin-bottom: 0;
 }
 .password-toggle-icon {
   position: absolute;
@@ -191,6 +190,8 @@
   padding: 14px;
   font-size: 1.1rem;
   font-weight: bold;
+  border-radius: 5px;
+  cursor: pointer;
 }
 .auth-buttons button:hover {
   background: var(--accent-primary-hover);
@@ -205,6 +206,9 @@
   background: var(--bg-tertiary);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
+  padding: 10px;
+  border-radius: 5px;
+  cursor: pointer;
 }
 .theme-toggle-auth button:hover {
   background: var(--bg-hover);
@@ -238,16 +242,17 @@
 }
 
 
-/* --- Barra de Usuario --- */
+/* --- Barra Superior de Usuario --- */
 .user-controls {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 10px;
   background: var(--bg-tertiary);
-  border-radius: 5px;
+  border-radius: 8px;
   margin-bottom: 15px;
   position: relative;
+  border: 1px solid var(--border-color);
 }
 .user-avatar-small {
   width: 40px;
@@ -270,11 +275,14 @@
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
+  padding: 8px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.9rem;
 }
 .dark-mode .options-button {
   background: var(--bg-hover);
   border-color: var(--border-light);
-  color: var(--text-primary);
 }
 .user-panel {
   position: absolute;
@@ -287,6 +295,7 @@
   z-index: 20;
   width: 200px;
   padding: 5px;
+  margin-top: 5px;
 }
 .user-panel button {
   display: block;
@@ -298,12 +307,12 @@
   border: none;
   margin: 0;
   border-radius: 3px;
+  cursor: pointer;
 }
 .user-panel button:hover {
   background: var(--bg-hover);
 }
 .user-panel button.delete {
-  background: none;
   color: var(--text-danger);
 }
 .user-panel button.delete:hover {
@@ -311,12 +320,12 @@
   color: var(--accent-danger-hover);
 }
 
-/* --- Estilos de Subida --- */
+/* --- Estilos de Subida de Imagen (ProfileUploader) --- */
 .profile-uploader-wrapper {
   position: relative;
   display: inline-block;
   cursor: pointer;
-  margin: 0 auto 10px auto; /* ¡Centrado! */
+  margin: 0 auto 10px auto;
   padding: 0;
 }
 .avatar-loading {
@@ -330,37 +339,48 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
+  font-size: 0.8rem;
   text-align: center;
   padding: 2px;
   box-sizing: border-box;
-  margin: 0 auto 10px auto; /* ¡Centrado! */
+  margin: 0 auto 10px auto;
 }
 
-/* --- Estilos para el Chat --- */
+/* --- Estilos Generales del Chat Layout --- */
 
 .chat-layout {
   display: flex;
   border: 1px solid var(--border-color);
   height: 70vh;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: var(--bg-primary);
 }
+
+/* BARRA LATERAL */
 .conversations-list {
   flex: 0 0 250px;
   border-right: 1px solid var(--border-color);
   background: var(--bg-secondary);
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
-.conversations-list h3 {
-  padding: 10px;
-  margin: 0;
-  border-bottom: 1px solid var(--border-color);
+
+/* Estilos para el encabezado colapsable */
+.section-header {
+    transition: background-color 0.2s;
 }
-.conversations-list ul {
+.section-header:hover {
+    background-color: var(--bg-hover) !important;
+    color: var(--text-primary) !important;
+}
+
+.conversations-list ul, .group-list {
   list-style: none;
   padding: 0;
   margin: 0;
+  overflow-y: auto; /* Hace que la lista tenga scroll si es muy larga */
+  flex: 1; 
 }
 .conversations-list li {
   padding: 10px;
@@ -383,17 +403,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex-grow: 1;
 }
 .conv-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex-grow: 1;
+  margin-left: 10px;
 }
 .unread-badge {
   background: var(--accent-primary);
   color: var(--text-inverted);
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: bold;
   padding: 3px 7px;
   border-radius: 10px;
@@ -432,53 +453,23 @@
   padding: 10px 20px;
   border-bottom: 1px solid var(--border-color);
   background: var(--bg-secondary);
+  height: 60px;
 }
 .chat-window-header h4 {
   margin: 0;
-  padding: 0;
-  border: none;
-  background: none;
-}
-.chat-header-options {
-  display: flex;
+  font-size: 1.1rem;
 }
 .chat-header-options button {
   font-size: 0.8em;
   padding: 4px 8px;
   margin-left: 5px;
-  border: none;
+  border: 1px solid var(--border-color);
   border-radius: 3px;
   cursor: pointer;
-}
-.chat-header-options .view-members-btn {
   background: var(--bg-tertiary);
   color: var(--text-primary);
-  border: 1px solid var(--border-color);
 }
-.chat-header-options .view-members-btn:hover {
-  background: var(--bg-hover);
-}
-.chat-header-options .delete-btn {
-  background: var(--bg-tertiary);
-  color: var(--text-danger);
-  border: 1px solid var(--border-color);
-}
-.chat-header-options .delete-btn:hover {
-  background: var(--bg-hover);
-}
-.chat-header-options .block-btn {
-  background: var(--accent-danger);
-  color: var(--text-inverted);
-}
-.chat-header-options .block-btn:hover {
-  background: var(--accent-danger-hover);
-}
-.chat-header-options .group-settings-btn {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-}
-.chat-header-options .group-settings-btn:hover {
+.chat-header-options button:hover {
   background: var(--bg-hover);
 }
 .chat-window > p {
@@ -509,7 +500,6 @@
     border-radius: 12px;
     border: 1px solid var(--border-light);
 }
-
 
 .message {
   display: flex;
@@ -591,12 +581,18 @@
   padding: 0 20px;
   font-size: 1.1rem;
   font-weight: bold;
+  cursor: pointer;
 }
 .message-input-area button:hover {
   background: var(--accent-primary-hover);
 }
+.message-input-area button:disabled {
+  background: var(--text-secondary);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
 
-/* --- Estilos para la Búsqueda --- */
+/* --- Estilos para la Búsqueda y Solicitudes --- */
 
 .create-group-wrapper {
   padding: 10px;
@@ -616,32 +612,11 @@
 .create-group-btn:hover {
   opacity: 0.9;
 }
-.search-area {
-  padding: 10px;
-  border-bottom: 1px solid var(--border-color);
+.search-btn-wrapper {
+    padding: 10px;
+    border-bottom: 1px solid var(--border-color);
 }
-.search-area input {
-  width: calc(100% - 20px);
-  padding: 8px 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 5px;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-}
-.search-results {
-  list-style: none;
-  padding: 0;
-  margin: 5px 0 0 0;
-}
-.search-results li {
-  padding: 8px;
-  background: var(--bg-tertiary);
-  border-bottom: 1px solid var(--border-light);
-  cursor: pointer;
-}
-.search-results li:hover {
-  background: var(--bg-hover);
-}
+
 .confirmation-box {
   background: var(--bg-warn);
   border: 1px solid var(--border-warn);
@@ -665,35 +640,40 @@
   border: 1px solid var(--border-color);
 }
 
-/* --- Estilos para Solicitudes --- */
-.chat-requests {
-  border-bottom: 2px solid var(--border-color);
+/* Solicitudes en Panel */
+.request-item {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
 }
-.chat-requests ul {
-  padding: 0;
-  margin: 0;
+.request-info {
+    display: flex;
+    flex-direction: column;
 }
-.chat-request-item {
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-  padding: 10px;
+.request-username {
+    font-weight: bold;
+    color: var(--text-primary);
 }
-.chat-request-item button {
-  background: var(--accent-safe);
-  color: var(--text-inverted);
-  border: none;
-  padding: 4px 8px;
-  font-size: 0.8em;
-  border-radius: 3px;
-  margin-left: 10px;
+.request-text {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
 }
-.no-requests {
-  padding: 10px;
-  font-size: 0.9em;
-  color: var(--text-secondary);
-  text-align: center;
+.accept-btn {
+    background-color: var(--accent-safe);
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
 }
+.accept-btn:hover {
+    opacity: 0.9;
+}
+
 
 /* --- Estilos para MODALES (Todos) --- */
 
@@ -708,14 +688,13 @@
   justify-content: center;
   align-items: center;
   z-index: 1000;
+  backdrop-filter: blur(2px);
 }
 .modal-overlay.priority-modal {
   z-index: 1001;
 }
-
-/* --- ¡AQUÍ ESTÁ LA CLASE NUEVA! --- */
 .modal-overlay.top-priority-modal {
-  z-index: 2000; /* ¡Nivel Supremo! Para Alertas y Errores */
+  z-index: 2000;
 }
 
 .modal-content {
@@ -725,28 +704,51 @@
   width: 90%;
   max-width: 400px;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  /* Asegura centrado en perfiles y deletes */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
 }
-.modal-content.success h2 {
-  color: var(--accent-safe);
+.modal-content h2 {
+  margin-top: 0;
+  text-align: center;
 }
-.dark-mode .modal-content.success h2 {
-  color: var(--accent-safe);
-}
-.modal-content.info h2 {
-  color: var(--accent-primary);
-}
-.dark-mode .modal-content.info h2 {
-  color: var(--accent-primary);
-}
-.modal-content.delete-conv h2 {
-  color: var(--text-danger);
-}
+.modal-content.success h2 { color: var(--accent-safe); }
+.dark-mode .modal-content.success h2 { color: var(--accent-safe); }
+.modal-content.info h2 { color: var(--accent-primary); }
+.dark-mode .modal-content.info h2 { color: var(--accent-primary); }
+.modal-content.delete-conv h2 { color: var(--text-danger); }
+.dark-mode .modal-content.delete-conv h2 { color: var(--text-danger); }
+
 .modal-content.create-group h3 {
   margin-bottom: 5px;
   font-size: 1rem;
 }
-.modal-content .group-name-input {
-  width: calc(100% - 24px);
+
+/* INPUT BORRAR CUENTA CENTRADO */
+.delete-confirm-input {
+  width: 100%;
+  padding: 12px;
+  font-size: 1.1rem;
+  border: 2px solid var(--text-danger);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border-radius: 5px;
+  margin-top: 10px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+.modal-content label {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin-bottom: 5px;
+  display: block;
+  width: 100%;
+}
+
+.group-name-input {
+  width: 100%;
   padding: 12px;
   font-size: 1.1rem;
   border: 1px solid var(--border-color);
@@ -755,7 +757,7 @@
   border-radius: 5px;
   margin-bottom: 15px;
 }
-.friend-list {
+.friend-list, .members-list {
   list-style: none;
   padding: 0;
   margin: 0;
@@ -764,47 +766,27 @@
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   border-radius: 5px;
+  width: 100%; /* Asegura ancho completo en flex column */
 }
-.friend-list li {
+.friend-list li, .members-list li {
   padding: 10px;
   border-bottom: 1px solid var(--border-light);
-  justify-content: flex-start;
+  display: flex;
+  align-items: center;
 }
-.friend-list li:last-child {
+.friend-list li:last-child, .members-list li:last-child {
   border-bottom: none;
 }
 .friend-list label {
   display: flex;
   align-items: center;
   cursor: pointer;
+  width: 100%;
+  text-align: left;
 }
 .friend-list input[type="checkbox"] {
   width: auto;
   margin-right: 10px;
-}
-.friend-list p {
-  text-align: center;
-  color: var(--text-secondary);
-  padding: 10px;
-}
-.members-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  max-height: 200px;
-  overflow-y: auto;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
-  border-radius: 5px;
-}
-.members-list li {
-  padding: 10px;
-  border-bottom: 1px solid var(--border-light);
-  display: flex;
-  align-items: center;
-}
-.members-list li:last-child {
-  border-bottom: none;
 }
 .members-list .admin-tag {
   font-size: 0.8em;
@@ -816,6 +798,7 @@
   margin-top: 15px;
   padding-top: 15px;
   border-top: 1px solid var(--border-color);
+  width: 100%;
 }
 .add-members-section h3 {
   margin: 0 0 10px 0;
@@ -848,11 +831,6 @@
 }
 
 /* --- Estilos del Modal de Perfil y Ajustes de Grupo --- */
-
-.modal-content.profile-modal,
-.modal-content.group-settings-modal {
-  text-align: center;
-}
 .profile-modal-avatar {
   width: 100px;
   height: 100px;
@@ -862,6 +840,7 @@
   background: var(--bg-tertiary);
   cursor: pointer;
   transition: filter 0.2s;
+  margin-bottom: 10px;
 }
 .profile-modal-avatar:hover {
   filter: brightness(0.8);
@@ -869,8 +848,7 @@
 .profile-avatar-wrapper {
   position: relative;
   display: inline-block;
-  margin: 0 auto 10px auto;
-  cursor: pointer;
+  margin-bottom: 10px;
 }
 .edit-avatar-icon {
   position: absolute;
@@ -893,8 +871,9 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 5px;
   margin-bottom: 15px;
+  width: 100%;
 }
 .username-edit-wrapper h3 {
   margin: 0;
@@ -904,7 +883,7 @@
   font-size: 1.5rem;
   font-weight: bold;
   padding: 5px;
-  width: 180px;
+  width: 100%; /* Adaptado para flex column */
   text-align: center;
   border: 1px solid var(--border-color);
   border-radius: 5px;
@@ -922,7 +901,6 @@
   text-decoration: underline;
 }
 
-
 .profile-modal label {
   display: block;
   text-align: left;
@@ -930,9 +908,10 @@
   font-size: 0.9em;
   color: var(--text-secondary);
   font-weight: bold;
+  width: 100%;
 }
 .bio-textarea {
-  width: calc(100% - 24px);
+  width: 100%;
   height: 80px;
   padding: 10px;
   font-family: Arial, sans-serif;
@@ -948,14 +927,15 @@
   font-size: 0.8em;
   color: var(--text-secondary);
   margin-top: 3px;
-  margin-bottom: 20px;
+  margin-bottom: 15px;
+  width: 100%;
 }
 .group-settings-modal .username-input {
   margin-top: 15px;
   margin-bottom: 25px;
   font-size: 1.3rem;
   padding: 8px 12px;
-  width: 250px;
+  width: 100%;
 }
 .group-settings-buttons {
   display: flex;
@@ -989,65 +969,25 @@
 }
 
 
-/* --- Estilos de botones del Modal General --- */
-
-.modal-content h2 {
-  margin-top: 0;
-}
-.modal-content h2:first-child { 
-  color: var(--text-danger);
-}
-.dark-mode .modal-content h2 {
-  color: var(--text-primary);
-}
-.dark-mode .modal-content h2:first-child {
-  color: var(--text-danger);
-}
-.dark-mode .modal-content.delete-conv h2 {
-  color: var(--text-danger);
-}
-.modal-content p {
-  line-height: 1.5;
-}
-.modal-content .delete-confirm-input {
-  width: calc(100% - 24px);
-  padding: 10px;
-  font-size: 1rem;
-  border: 1px solid var(--border-color);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  border-radius: 5px;
-  margin-top: 5px;
-}
-.modal-content label {
-  font-size: 0.9em;
-  color: var(--text-secondary);
-}
-.modal-content ul {
-  list-style: disc;
-  margin-left: 20px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
-  padding: 10px 10px 10px 30px;
-}
+/* --- Botones de Modal General --- */
 .modal-buttons {
-  margin-top: 20px;
+  margin-top: 10px;
   display: flex;
   justify-content: space-between;
+  width: 100%;
+  gap: 10px;
 }
 .modal-buttons.single-button {
   justify-content: center;
 }
-.modal-buttons.single-button button {
-  width: 100%;
-}
 .modal-buttons button {
-  width: 48%;
+  flex: 1;
   padding: 12px;
   font-size: 1rem;
   font-weight: bold;
   border: none;
   border-radius: 5px;
+  cursor: pointer;
 }
 .modal-buttons .confirm-logout {
   background: var(--accent-primary);
@@ -1074,9 +1014,9 @@
   border: 1px solid var(--border-color);
 }
 
-/* NUEVO BOTÓN: Hacer Admin */
+/* Botones pequeños de gestión de miembros */
 .make-admin-btn {
-  background-color: #ffc107; /* Amarillo */
+  background-color: #ffc107;
   border: none;
   border-radius: 4px;
   padding: 5px 8px;
@@ -1089,10 +1029,8 @@
 .make-admin-btn:hover {
   background-color: #e0a800;
 }
-
-/* NUEVO BOTÓN: Quitar Admin (Degradar) */
 .demote-admin-btn {
-  background-color: var(--accent-danger); /* Rojo */
+  background-color: var(--accent-danger);
   border: none;
   border-radius: 4px;
   padding: 5px 8px;
@@ -1101,15 +1039,13 @@
   font-size: 0.8em;
   font-weight: bold;
   color: var(--text-inverted);
-  margin-right: 5px; /* Separación si hay otro botón */
+  margin-right: 5px;
 }
 .demote-admin-btn:hover {
   background-color: var(--accent-danger-hover);
 }
-
-/* NUEVO BOTÓN: Expulsar (Kick) */
 .kick-btn {
-  background-color: #dc3545; /* Rojo estándar */
+  background-color: #dc3545;
   border: none;
   border-radius: 4px;
   padding: 5px 8px;
@@ -1121,4 +1057,311 @@
 }
 .kick-btn:hover {
   background-color: #c82333;
+}
+
+/* --- NOTIFICACIONES (Campana y Panel) --- */
+.notification-wrapper {
+  position: relative;
+  display: inline-block;
+  margin-right: 10px; 
+}
+.notification-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 5px;
+  position: relative;
+  transition: transform 0.2s;
+}
+.notification-btn:hover {
+  transform: scale(1.1);
+}
+.notification-badge {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 10px;
+  height: 10px;
+  background-color: var(--accent-danger);
+  border-radius: 50%;
+  border: 2px solid var(--bg-tertiary);
+}
+
+.notification-panel {
+  position: absolute;
+  top: 120%;
+  right: -60px;
+  width: 300px;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+  z-index: 100;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.notif-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-tertiary);
+    width: 100%;
+}
+.notif-tab {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+.notif-tab.active {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--accent-primary);
+}
+
+.notification-header {
+  padding: 10px;
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+.notification-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.clear-notifs-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.notification-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  width: 100%;
+}
+.notification-item {
+  padding: 12px;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 0.9rem;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  text-align: left;
+}
+.notification-item.unread {
+  background-color: var(--bg-warn);
+}
+.dark-mode .notification-item.unread {
+  background-color: #3d3625; 
+}
+.notif-time {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  align-self: flex-end;
+}
+.empty-notifs {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+
+/* --- BÚSQUEDA DE USUARIOS (MODAL & TARJETAS) --- */
+.search-area input {
+    width: 100%;
+    padding: 12px;
+    border-radius: 25px; 
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 1rem;
+    outline: none;
+}
+.search-area input:focus {
+    border-color: var(--accent-primary);
+    background: var(--bg-primary);
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.search-results {
+  list-style: none;
+  padding: 0;
+  margin: 15px 0 0 0;
+  max-height: 350px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  background-color: var(--bg-secondary);
+}
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  padding: 15px;
+  border-bottom: 1px solid var(--border-light);
+  transition: background-color 0.2s;
+}
+.search-result-item:last-child {
+  border-bottom: none;
+}
+.search-result-item:hover {
+  background-color: var(--bg-hover);
+}
+
+.search-avatar {
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-right: 15px;
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
+  background-color: var(--bg-tertiary);
+}
+
+.search-info {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.search-username {
+  display: block;
+  font-weight: bold;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+.search-bio {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.search-add-btn {
+  background-color: var(--accent-safe);
+  color: white;
+  border: none;
+  border-radius: 20px;
+  padding: 6px 15px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  cursor: pointer;
+  margin-left: 10px;
+  flex-shrink: 0;
+  transition: transform 0.1s;
+}
+.search-add-btn:hover {
+  background-color: #218838;
+  transform: scale(1.05);
+}
+
+.no-results {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 20px;
+  font-style: italic;
+}
+
+/* --- OVERLAY DE CONFIRMACIÓN (BÚSQUEDA) --- */
+.search-confirm-overlay {
+  position: absolute;
+  top: 80px;
+  left: 20px;
+  right: 20px;
+  bottom: 20px;
+  background-color: rgba(255, 255, 255, 0.98);
+  display: flex;
+  justify-content: center;
+  align-items: center; 
+  z-index: 10;
+  border-radius: 8px;
+  animation: fadeIn 0.2s ease-out;
+}
+.dark-mode .search-confirm-overlay {
+  background-color: rgba(30, 30, 30, 0.98);
+}
+
+.search-confirm-card {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 30px;
+  width: 100%;
+  max-width: 350px;
+  text-align: center;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+  animation: slideUp 0.3s ease-out;
+}
+@keyframes slideUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+.confirm-avatar-large {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  border: 4px solid var(--bg-tertiary);
+  object-fit: cover;
+  margin-bottom: 15px;
+}
+.confirm-title {
+  font-size: 1.1rem;
+  margin-bottom: 5px;
+  color: var(--text-primary);
+}
+.confirm-subtitle {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+}
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+.btn-confirm-yes {
+  flex: 1;
+  background-color: var(--accent-safe);
+  color: white;
+  border: none;
+  padding: 10px;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.btn-confirm-yes:hover {
+  background-color: #218838;
+  transform: scale(1.05);
+}
+.btn-confirm-no {
+  flex: 1;
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  padding: 10px;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+}
+.btn-confirm-no:hover {
+  background-color: var(--bg-hover);
 }

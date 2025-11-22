@@ -8,7 +8,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 const DEFAULT_PROFILE_PIC = 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png';
 const DEFAULT_GROUP_PIC = 'https://cdn.pixabay.com/photo/2016/11/14/17/39/group-1824145_1280.png';
 
-function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, onlineUsersMap }) {
+function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, onlineUsersMap, onAddNotification }) {
 
   const [chatRequests, setChatRequests] = useState([]);
   const [conversations, setConversations] = useState([]);
@@ -18,13 +18,26 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   
+  // --- Estados de Búsqueda ---
+  const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [pendingUser, setPendingUser] = useState(null);
   
-  const [deletingConv, setDeletingConv] = useState(null);
-  const [blockingUser, setBlockingUser] = useState(null);
+  const [myBlockedUsers, setMyBlockedUsers] = useState([]); 
+  const [isChatBlocked, setIsChatBlocked] = useState(false);
+
+  // --- Estados de la Interfaz (Acordeón) ---
+  const [isGroupsOpen, setIsGroupsOpen] = useState(true); // <--- NUEVO
+  const [isConversationsOpen, setIsConversationsOpen] = useState(true); // <--- NUEVO
+
+  const [deletingConv, setDeletingConv] = useState(null); 
+  const [blockingUser, setBlockingUser] = useState(null); 
+  const [unblockingUser, setUnblockingUser] = useState(null);
   const [kickingUser, setKickingUser] = useState(null); 
+  const [blockAndUnfriendUser, setBlockAndUnfriendUser] = useState(null);
+
+  const [viewingMember, setViewingMember] = useState(null);
 
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
@@ -48,8 +61,22 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     scrollToBottom();
   }, [messages]);
 
+  useEffect(() => {
+    const fetchBlockedUsers = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/users/me/blocked`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        setMyBlockedUsers(response.data);
+      } catch (error) {
+        console.error("Error al cargar bloqueos:", error);
+      }
+    };
+    if (token) {
+        fetchBlockedUsers();
+    }
+  }, [token]);
 
-  // Cargar las conversaciones (Hook 1)
   useEffect(() => {
     const fetchConversations = async () => {
       try {
@@ -62,14 +89,7 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
             if (c.isGroup) return false;
             if (c.status !== 'pending') return false;
             if (!c.initiatedBy || !c.initiatedBy._id) return false;
-
-            const initiatorId = String(c.initiatedBy._id);
-            const myId = String(userId);
-
-            if (initiatorId === myId) {
-                return false; 
-            }
-            return true;
+            return String(c.initiatedBy._id) !== String(userId);
         });
 
         const activeDMs = allConversations.filter(c => !c.isGroup && c.status === 'active');
@@ -87,20 +107,20 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     }
   }, [token, userId]);
 
-  // Hook 2.1: Para registrar al usuario (Solo si es necesario)
   useEffect(() => {
     if (!socket || !userId) return;
-    // Emitir solo si el socket está conectado
     if (socket.connected) {
         socket.emit('registerUser', { userId, username });
     }
   }, [socket, userId, username]);
 
-  // Hook 2.2: Para solicitudes y grupos
   useEffect(() => {
     if (!socket) return;
 
     const handleNewRequest = (newRequest) => {
+      if (onAddNotification) {
+          onAddNotification(`Nueva solicitud de amistad de ${newRequest.initiatedBy.username}`);
+      }
       setChatRequests((prevRequests) => {
          if (prevRequests.some(r => r._id === newRequest._id)) return prevRequests;
          if (newRequest.initiatedBy && String(newRequest.initiatedBy._id) === String(userId)) {
@@ -109,21 +129,33 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
          return [...prevRequests, newRequest];
       });
     };
+    
     const handleRequestAccepted = (acceptedChat) => {
+      const otherUser = acceptedChat.participants.find(p => p._id !== userId);
+      // Notificar solo si fui el iniciador
+      const isInitiator = acceptedChat.initiatedBy._id === userId;
+
+      if (isInitiator && otherUser && onAddNotification) {
+         onAddNotification(`${otherUser.username} aceptó tu solicitud de chat.`);
+      }
       setConversations((prevConversations) => {
          if (prevConversations.some(c => c._id === acceptedChat._id)) return prevConversations;
          return [...prevConversations, acceptedChat];
       });
     };
+
     const handleNewGroup = (newGroup) => {
+      if (onAddNotification) {
+         onAddNotification(`Has sido añadido al grupo: "${newGroup.groupName}"`);
+      }
       setGroupChats((prevGroups) => {
         if (prevGroups.some(g => g._id === newGroup._id)) {
           return prevGroups;
         }
-        onShowInfo(`¡Has sido añadido a un nuevo grupo: ${newGroup.groupName}!`);
         return [...prevGroups, newGroup];
       });
     };
+
     const handleConversationUpdated = (updatedConv) => {
       if (updatedConv.isGroup) {
         const amIParticipant = updatedConv.participants.some(p => p._id === userId);
@@ -145,26 +177,136 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
       }
     };
 
+    const handleConversationDeleted = (deletedId) => {
+        setConversations((prev) => prev.filter(c => c._id !== deletedId));
+        setChatRequests((prev) => prev.filter(c => c._id !== deletedId));
+        
+        if (selectedChat && selectedChat._id === deletedId) {
+            setSelectedChat(null);
+            setMessages([]);
+            if (onShowInfo) onShowInfo("El usuario ha eliminado su cuenta.");
+        }
+    };
+
+    const handleChatReadded = (chat) => {
+        const otherUser = chat.participants.find(p => p._id !== userId);
+        if (otherUser && onAddNotification) {
+            onAddNotification(`${otherUser.username} te ha vuelto a agregar.`);
+        }
+        setConversations(prev => {
+            if (prev.some(c => c._id === chat._id)) return prev;
+            return [chat, ...prev];
+        });
+    };
+
+    const handleBlockedBy = ({ blockerName, blockerId }) => {
+        if (onAddNotification) {
+            onAddNotification(`${blockerName} te ha bloqueado.`);
+        }
+        setConversations(prev => prev.map(c => {
+            const other = getOtherParticipant(c.participants);
+            if(other && other._id === blockerId) {
+                return { ...c, hasBlock: true };
+            }
+            return c;
+        }));
+        if (selectedChat && !selectedChat.isGroup) {
+            const otherUser = getOtherParticipant(selectedChat.participants);
+            if (otherUser && otherUser.username === blockerName) {
+                setIsChatBlocked(true);
+            }
+        }
+    };
+
+    const handleUnblockedBy = ({ blockerName, blockerId }) => {
+        setConversations(prev => prev.map(c => {
+            const other = getOtherParticipant(c.participants);
+            if(other && other._id === blockerId) {
+                return { ...c, hasBlock: false };
+            }
+            return c;
+        }));
+        if (selectedChat && !selectedChat.isGroup) {
+            const otherUser = getOtherParticipant(selectedChat.participants);
+            if (otherUser && otherUser.username === blockerName) {
+                checkBlockStatus(otherUser._id);
+            }
+        }
+    };
+
+    const handleUnfriendedBy = ({ unfrienderName }) => {
+        if (onAddNotification) {
+            onAddNotification(`${unfrienderName} te ha desagregado.`);
+        }
+    };
+
+    const handleUserProfileUpdated = (updatedUser) => {
+        setConversations(prev => prev.map(conv => ({
+            ...conv,
+            participants: conv.participants.map(p => 
+                p._id === updatedUser.userId 
+                ? { ...p, username: updatedUser.username, bio: updatedUser.bio, profilePictureUrl: updatedUser.profilePictureUrl }
+                : p
+            )
+        })));
+        setGroupChats(prev => prev.map(conv => ({
+            ...conv,
+            participants: conv.participants.map(p => 
+                p._id === updatedUser.userId 
+                ? { ...p, username: updatedUser.username, bio: updatedUser.bio, profilePictureUrl: updatedUser.profilePictureUrl }
+                : p
+            )
+        })));
+        setSelectedChat(prev => {
+            if (!prev) return null;
+            const isParticipant = prev.participants.some(p => p._id === updatedUser.userId);
+            if (!isParticipant) return prev;
+            return {
+                ...prev,
+                participants: prev.participants.map(p => 
+                    p._id === updatedUser.userId 
+                    ? { ...p, username: updatedUser.username, bio: updatedUser.bio, profilePictureUrl: updatedUser.profilePictureUrl }
+                    : p
+                )
+            };
+        });
+    };
+
     socket.on('newChatRequest', handleNewRequest);
     socket.on('chatRequestAccepted', handleRequestAccepted);
+    socket.on('chatReadded', handleChatReadded);
     socket.on('newGroupChat', handleNewGroup);
     socket.on('conversationUpdated', handleConversationUpdated);
+    socket.on('conversationDeleted', handleConversationDeleted);
+    socket.on('blockedBy', handleBlockedBy);
+    socket.on('unblockedBy', handleUnblockedBy);
+    socket.on('unfriendedBy', handleUnfriendedBy);
+    socket.on('userProfileUpdated', handleUserProfileUpdated);
 
     return () => {
       socket.off('newChatRequest', handleNewRequest);
       socket.off('chatRequestAccepted', handleRequestAccepted);
+      socket.off('chatReadded', handleChatReadded);
       socket.off('newGroupChat', handleNewGroup);
       socket.off('conversationUpdated', handleConversationUpdated);
+      socket.off('conversationDeleted', handleConversationDeleted);
+      socket.off('blockedBy', handleBlockedBy);
+      socket.off('unblockedBy', handleUnblockedBy);
+      socket.off('unfriendedBy', handleUnfriendedBy);
+      socket.off('userProfileUpdated', handleUserProfileUpdated);
     };
-  }, [socket, onShowInfo, selectedChat, userId]);
+  }, [socket, onShowInfo, selectedChat, userId, onAddNotification]);
   
-  // Hook 2.3: Para mensajes
   useEffect(() => {
     if (!socket) return;
     const handleNewMessage = (incomingMessage) => {
+      if (incomingMessage.type === 'system') {
+          if (!incomingMessage.content.startsWith(username) && onAddNotification) {
+             onAddNotification(`Sistema: ${incomingMessage.content}`);
+          }
+      }
       if (incomingMessage.conversationId === selectedChat?._id) {
         setMessages((prevMessages) => {
-            // Evitar duplicados de mensajes por si acaso
             if (prevMessages.some(m => m._id === incomingMessage._id)) return prevMessages;
             return [...prevMessages, incomingMessage];
         });
@@ -174,9 +316,8 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     return () => {
       socket.off('newMessage', handleNewMessage);
     };
-  }, [socket, selectedChat]);
+  }, [socket, selectedChat, username, onAddNotification]);
   
-  // Hook 2.4: Para notificar al backend qué chat estamos viendo
   useEffect(() => {
     if (socket && selectedChat) {
       socket.emit('joinChatRoom', selectedChat._id);
@@ -188,8 +329,18 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     };
   }, [socket, selectedChat]);
 
+  const checkBlockStatus = async (otherUserId) => {
+      try {
+          const response = await axios.get(`${API_URL}/users/${otherUserId}/check-block`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+          });
+          const { iBlockedThem, theyBlockedMe } = response.data;
+          setIsChatBlocked(iBlockedThem || theyBlockedMe);
+      } catch (error) {
+          console.error("Error checking block status", error);
+      }
+  };
 
-  // Cargar mensajes al seleccionar chat
   const handleSelectChat = async (conversation) => {
     if (conversation.status !== 'active') {
        setSelectedChat(conversation);
@@ -199,6 +350,14 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     setSelectedChat(conversation);
     setInviteMembers([]);
     setTempGroupName(conversation.groupName || '');
+    setIsChatBlocked(false);
+
+    if (!conversation.isGroup) {
+        const otherUser = getOtherParticipant(conversation.participants);
+        if (otherUser) {
+            await checkBlockStatus(otherUser._id);
+        }
+    }
     
     try {
       const readResponse = await axios.post(
@@ -230,9 +389,10 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     }
   };
 
-  // Enviar mensaje
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedChat || selectedChat.status !== 'active') return;
+    if (isChatBlocked) return; 
+
     try {
       await axios.post(
         `${API_URL}/conversations/${selectedChat._id}/messages`,
@@ -248,7 +408,6 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     }
   };
 
-  // Función de Búsqueda
   const handleSearch = async (e) => {
     const query = e.target.value;
     setSearchQuery(query);
@@ -268,7 +427,13 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     }
   };
 
-  // Función para Iniciar Chat
+  const closeSearchModal = () => {
+    setShowSearchModal(false);
+    setSearchQuery('');
+    setSearchResults([]);
+    setPendingUser(null);
+  }
+
   const handleStartChat = async (otherUser) => {
     try {
       const response = await axios.post(
@@ -277,15 +442,20 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
       const newConversation = response.data;
-      setSearchQuery('');
-      setSearchResults([]);
-      setPendingUser(null);
+      
+      closeSearchModal();
+
       if (response.status === 201) {
          onShowRequestSent(otherUser.username);
       } else if (response.status === 200) {
         const existingConversation = response.data;
+        
+        setConversations(prev => {
+            if (prev.some(c => c._id === existingConversation._id)) return prev;
+            return [existingConversation, ...prev];
+        });
+
         if (existingConversation.status === 'active') {
-          onShowInfo(`Ya tienes un chat activo con ${otherUser.username}.`);
           handleSelectChat(existingConversation);
         } else if (existingConversation.status === 'pending') {
           if (existingConversation.initiatedBy._id === userId) {
@@ -306,7 +476,6 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     }
   };
   
-  // Función para Aceptar Chat
   const handleAcceptChat = async (conversation) => {
     try {
       const response = await axios.post(
@@ -326,7 +495,6 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     }
   };
   
-  // Función para Confirmar Borrado
   const confirmDeleteOrLeave = async () => {
     if (!deletingConv) return;
     try {
@@ -352,7 +520,6 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     }
   };
   
-  // Función para Confirmar Bloqueo
   const handleConfirmBlock = async () => {
     if (!blockingUser) return;
     try {
@@ -362,9 +529,18 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
         { headers: { 'Authorization': `Bearer ${token}` } }
       );
       onShowInfo(response.data.message);
+      setMyBlockedUsers(prev => [...prev, blockingUser._id]);
+      
+      setConversations(prev => prev.map(c => {
+          const other = getOtherParticipant(c.participants);
+          if(other && other._id === blockingUser._id) {
+              return { ...c, hasBlock: true };
+          }
+          return c;
+      }));
+
+      setIsChatBlocked(true);
       setBlockingUser(null);
-      setSelectedChat(null);
-      setMessages([]);
     } catch (error) {
       console.error("Error al bloquear usuario:", error);
       onShowInfo(error.response.data.message || "No se pudo bloquear al usuario.");
@@ -372,7 +548,67 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     }
   };
 
-  // Funciones para el Modal de Grupo
+  const handleConfirmUnblock = async () => {
+    if (!unblockingUser) return;
+    try {
+      const response = await axios.delete(
+        `${API_URL}/users/${unblockingUser._id}/block`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+      );
+      onShowInfo(response.data.message);
+      setMyBlockedUsers(prev => prev.filter(id => id !== unblockingUser._id));
+      
+      setConversations(prev => prev.map(c => {
+          const other = getOtherParticipant(c.participants);
+          if(other && other._id === unblockingUser._id) {
+              return { ...c, hasBlock: false };
+          }
+          return c;
+      }));
+
+      await checkBlockStatus(unblockingUser._id);
+      setUnblockingUser(null);
+    } catch (error) {
+      console.error("Error al desbloquear:", error);
+      onShowInfo("Error al desbloquear.");
+      setUnblockingUser(null);
+    }
+  };
+
+  const handleConfirmBlockAndUnfriend = async () => {
+    if (!blockAndUnfriendUser) return;
+    
+    const chatIdToDelete = selectedChat._id;
+
+    try {
+        await axios.post(
+            `${API_URL}/users/${blockAndUnfriendUser._id}/block`,
+            {},
+            { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+
+        await axios.delete(
+            `${API_URL}/conversations/${chatIdToDelete}`,
+            { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+
+        setMyBlockedUsers(prev => [...prev, blockAndUnfriendUser._id]);
+        setConversations(prev => prev.filter(c => c._id !== chatIdToDelete));
+        
+        setSelectedChat(null);
+        setMessages([]);
+        setBlockAndUnfriendUser(null);
+        setShowGroupSettingsModal(false);
+
+        onShowInfo("Usuario bloqueado y desagregado correctamente.");
+
+    } catch (error) {
+        console.error("Error en Block & Unfriend:", error);
+        onShowInfo("Hubo un error al procesar la solicitud.");
+        setBlockAndUnfriendUser(null);
+    }
+  };
+
   const handleMemberToggle = (friendId) => {
     setNewGroupMembers((prevMembers) => {
       if (prevMembers.includes(friendId)) {
@@ -446,8 +682,6 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     setInviteMembers([]);
   };
 
-  // --- GESTIÓN DE ROLES Y EXPULSIÓN ---
-  
   const handlePromoteToAdmin = async (memberId, memberName) => {
     try {
       const response = await axios.put(
@@ -497,11 +731,10 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
         console.error("Error al expulsar:", error);
         onShowInfo(error.response.data.message || "Error al expulsar.");
     } finally {
-        setKickingUser(null); // Cerrar modal
+        setKickingUser(null); 
     }
   }
 
-  // --- FUNCIÓN PARA CAMBIAR FOTO DE GRUPO ---
   const handleGroupPicUpdate = (newUrl) => {
      setSelectedChat(prev => ({ ...prev, groupPictureUrl: newUrl }));
      setGroupChats(prev => prev.map(g => 
@@ -510,7 +743,6 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
      onShowInfo("¡Foto de grupo actualizada!");
   };
   
-  // Funciones para Ajustes de Grupo
   const handleSaveGroupDetails = async () => {
     if (!tempGroupName.trim()) {
       return onShowInfo("El nombre del grupo no puede estar vacío.");
@@ -536,14 +768,11 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     }
   };
 
-  // Helpers
   const getOtherParticipant = (participants) => {
     if (!participants) return null; 
     return participants.find(p => p.username !== username) || null;
   };
 
-  // --- FUNCIONES DE VERIFICACIÓN SEGURAS ---
-  
   const isMemberFounder = (chat, memberId) => {
      if (!chat || !chat.groupFounder) return false;
      const founderId = (chat.groupFounder && chat.groupFounder._id) ? chat.groupFounder._id : chat.groupFounder;
@@ -576,7 +805,6 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
 
   const isCurrentUserAdmin = checkIsAdmin(selectedChat);
   const isCurrentUserFounder = isMemberFounder(selectedChat, userId);
-  
   const canEditGroup = isCurrentUserFounder || isCurrentUserAdmin;
 
   const friendsList = conversations
@@ -592,25 +820,99 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
 
   return (
     <div className="chat-container">
+
+      {/* --- MODAL DE BÚSQUEDA DE USUARIOS --- */}
+      {showSearchModal && (
+        <div className="modal-overlay top-priority-modal">
+          <div className="modal-content" style={{maxHeight: '80vh', display: 'flex', flexDirection: 'column'}}>
+             <h2>Buscar Usuarios</h2>
+             <div className="search-area" style={{border: 'none', padding: '0 0 10px 0'}}>
+                <input 
+                  type="text" 
+                  placeholder="Escribe un nombre..." 
+                  value={searchQuery} 
+                  onChange={handleSearch}
+                  autoFocus
+                />
+             </div>
+             
+             <ul className="search-results">
+                {searchResults.map(user => (
+                  <li key={user._id} className="search-result-item">
+                    <img 
+                      src={user.profilePictureUrl || DEFAULT_PROFILE_PIC} 
+                      alt={user.username} 
+                      className="search-avatar"
+                    />
+                    <div className="search-info">
+                      <span className="search-username">{user.username}</span>
+                      <span className="search-bio">
+                        {user.bio ? (user.bio.length > 30 ? user.bio.substring(0, 30) + '...' : user.bio) : "Sin presentación"}
+                      </span>
+                    </div>
+                    <button 
+                      className="search-add-btn"
+                      onClick={() => setPendingUser(user)}
+                    >
+                      Agregar +
+                    </button>
+                  </li>
+                ))}
+                {searchQuery && searchResults.length === 0 && (
+                    <li className="no-results">No se encontraron usuarios.</li>
+                )}
+             </ul>
+             
+             {/* --- TARJETA DE CONFIRMACIÓN SOBRE LA BÚSQUEDA --- */}
+             {pendingUser && (
+              <div className="search-confirm-overlay">
+                <div className="search-confirm-card">
+                    <img 
+                        src={pendingUser.profilePictureUrl || DEFAULT_PROFILE_PIC} 
+                        alt={pendingUser.username} 
+                        className="confirm-avatar-large"
+                    />
+                    <h3 className="confirm-title">¿Conectar con {pendingUser.username}?</h3>
+                    <p className="confirm-subtitle">Se enviará una solicitud de amistad.</p>
+                    
+                    <div className="confirm-actions">
+                        <button className="btn-confirm-yes" onClick={() => handleStartChat(pendingUser)}>
+                            Enviar Solicitud
+                        </button>
+                        <button className="btn-confirm-no" onClick={() => setPendingUser(null)}>
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+              </div>
+             )}
+
+             <div className="modal-buttons single-button" style={{marginTop: '15px'}}>
+                <button className="confirm-logout" onClick={closeSearchModal}>Cerrar</button>
+             </div>
+          </div>
+        </div>
+      )}
       
       {deletingConv && (
         <div className="modal-overlay priority-modal">
           <div className="modal-content delete-conv">
-            <h2>{deletingConv.isGroup ? 'Salir del Grupo' : 'Eliminar Chat'}</h2>
+            <h2>{deletingConv.isGroup ? 'Salir del Grupo' : 'Desagregar Usuario'}</h2>
             <p>
-              ¿Seguro que quieres {deletingConv.isGroup ? 'salir de' : 'eliminar tu chat con'} <strong>
-                {deletingConv.isGroup 
-                  ? deletingConv.groupName 
-                  : getOtherParticipant(deletingConv.participants)?.username}
-              </strong>?
+              {deletingConv.isGroup 
+                ? `¿Seguro que quieres salir de ${deletingConv.groupName}?`
+                : `¿Seguro que quieres desagregar a ${getOtherParticipant(deletingConv.participants)?.username}?`
+              }
             </p>
-            {deletingConv.isGroup ? (
-              <p><strong>Esta acción es permanente.</strong> Para volver a unirte, necesitarás que otro miembro te invite.</p>
-            ) : (
-              <p>Esto solo lo ocultará de tu vista. Si te envían un nuevo mensaje, el chat reaparecerá.</p>
+            {!deletingConv.isGroup && (
+                <p style={{fontSize: '0.9em', color: '#666'}}>
+                    Esto eliminará el chat de tu lista. La otra persona conservará el historial, pero si te envía un mensaje, no te llegará ni reaparecerá el chat hasta que vuelvas a agregarlo.
+                </p>
             )}
             <div className="modal-buttons">
-              <button className="confirm-delete" onClick={confirmDeleteOrLeave}>{deletingConv.isGroup ? 'Sí, salir' : 'Sí, eliminar'}</button>
+              <button className="confirm-delete" onClick={confirmDeleteOrLeave}>
+                  {deletingConv.isGroup ? 'Sí, salir' : 'Sí, desagregar'}
+              </button>
               <button className="cancel-delete" onClick={() => setDeletingConv(null)}>No, cancelar</button>
             </div>
           </div>
@@ -621,8 +923,8 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
         <div className="modal-overlay priority-modal">
           <div className="modal-content delete-conv">
             <h2>Bloquear Usuario</h2>
-            <p>¿Seguro que quieres bloquear a <strong>{blockingUser.username}</strong> por 1 hora?</p>
-            <p>No podrás iniciar chats, enviar mensajes o recibir mensajes de este usuario.</p>
+            <p>¿Seguro que quieres bloquear a <strong>{blockingUser.username}</strong>?</p>
+            <p>No podrás recibir mensajes de este usuario hasta que lo desbloquees manualmente.</p>
             <div className="modal-buttons">
               <button className="confirm-delete" onClick={handleConfirmBlock}>Sí, bloquear</button>
               <button className="cancel-delete" onClick={() => setBlockingUser(null)}>No, cancelar</button>
@@ -631,7 +933,67 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
         </div>
       )}
 
-      {/* MODAL DE CONFIRMACIÓN KICK */}
+      {unblockingUser && (
+        <div className="modal-overlay priority-modal">
+          <div className="modal-content success">
+            <h2>Desbloquear Usuario</h2>
+            <p>¿Quieres desbloquear a <strong>{unblockingUser.username}</strong>?</p>
+            <div className="modal-buttons">
+              <button className="confirm-logout" onClick={handleConfirmUnblock}>Sí, desbloquear</button>
+              <button className="cancel-delete" onClick={() => setUnblockingUser(null)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- NUEVO MODAL: BLOQUEAR Y DESAGREGAR --- */}
+      {blockAndUnfriendUser && (
+        <div className="modal-overlay priority-modal">
+            <div className="modal-content delete-conv">
+                <h2>Bloquear y Desagregar</h2>
+                <p>¿Estás seguro de que quieres bloquear y desagregar a <strong>{blockAndUnfriendUser.username}</strong>?</p>
+                <p style={{fontWeight: 'bold', color: '#dc3545', marginTop: '10px'}}>
+                    ADVERTENCIA: Ya no habrá forma de que ninguno de los 2 se pueda volver a agregar.
+                </p>
+                <div className="modal-buttons">
+                    <button className="confirm-delete" onClick={handleConfirmBlockAndUnfriend}>
+                        Confirmar
+                    </button>
+                    <button className="cancel-delete" onClick={() => setBlockAndUnfriendUser(null)}>
+                        Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* --- MODAL VER PERFIL DE MIEMBRO --- */}
+      {viewingMember && (
+        <div className="modal-overlay top-priority-modal">
+            <div className="modal-content profile-modal">
+                <h2>Perfil de Usuario</h2>
+                <div className="profile-avatar-wrapper">
+                    <img 
+                        src={viewingMember.profilePictureUrl || DEFAULT_PROFILE_PIC} 
+                        alt="Perfil"
+                        className="profile-modal-avatar"
+                        style={{cursor: 'default'}} 
+                    />
+                </div>
+                <h3>{viewingMember.username}</h3>
+                <p style={{fontStyle: 'italic', color: '#777', marginTop: '10px'}}>
+                    {viewingMember.bio || "Sin presentación."}
+                </p>
+                
+                <div className="modal-buttons single-button" style={{marginTop: '25px'}}>
+                    <button className="confirm-logout" onClick={() => setViewingMember(null)}>
+                        Cerrar
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
       {kickingUser && (
         <div className="modal-overlay top-priority-modal">
           <div className="modal-content delete-conv">
@@ -670,7 +1032,7 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                   </label>
                 </li>
               )) : (
-                <p>No tienes amigos (chats 1-a-1) para invitar.</p>
+                <p>No tienes amigos para invitar.</p>
               )}
             </ul>
             <div className="modal-buttons">
@@ -697,11 +1059,19 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                   <li key={member._id}>
                     <div style={{display: 'flex', alignItems: 'center', flex: 1}}>
                         <img 
-                        src={avatarUrl} 
-                        alt={member.username} 
-                        className={`avatar-in-list ${isOnline ? 'online' : 'offline'}`} 
+                            src={avatarUrl} 
+                            alt={member.username} 
+                            className={`avatar-in-list ${isOnline ? 'online' : 'offline'}`} 
+                            style={{cursor: 'pointer'}}
+                            onClick={() => setViewingMember(member)} 
                         />
-                        <span className="conv-name">{member.username}</span>
+                        <span 
+                            className="conv-name"
+                            style={{cursor: 'pointer', textDecoration: 'underline'}}
+                            onClick={() => setViewingMember(member)} 
+                        >
+                            {member.username}
+                        </span>
                         
                         {isThisMemberFounder ? (
                              <span className="admin-tag" style={{color: 'gold'}}> (Fundador)</span>
@@ -710,10 +1080,8 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                         ) : null}
                     </div>
                     
-                    {/* BOTONES DE GESTIÓN */}
                     {!isMe && (
                       <>
-                        {/* CASO 1: PROMOVER O EXPULSAR A MIEMBRO NORMAL */}
                         {isCurrentUserAdmin && !isThisMemberAdmin && !isThisMemberFounder && (
                             <>
                                 <button 
@@ -733,7 +1101,6 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                             </>
                         )}
 
-                        {/* CASO 2: DEGRADAR O EXPULSAR A ADMIN (SOLO FUNDADOR) */}
                         {isCurrentUserFounder && isThisMemberAdmin && !isThisMemberFounder && (
                             <>
                                 <button 
@@ -768,7 +1135,7 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                 {isInviteSectionOpen && (
                   <>
                     <ul className="friend-list invite">
-                      {friendsToInvite && friendsToInvite.length > 0 ? friendsToInvite.map(friend => (
+                      {friendsToInvite.map(friend => (
                         <li key={friend._id}>
                           <label>
                             <input 
@@ -779,16 +1146,14 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                             {friend.username}
                           </label>
                         </li>
-                      )) : (
-                        <p>No tienes más amigos para invitar.</p>
-                      )}
+                      ))}
                     </ul>
                     <button 
                       className="invite-btn" 
                       onClick={handleInviteMembers}
-                      disabled={!inviteMembers || inviteMembers.length === 0}
+                      disabled={!inviteMembers.length}
                     >
-                      Añadir ({inviteMembers ? inviteMembers.length : 0})
+                      Añadir ({inviteMembers.length})
                     </button>
                   </>
                 )}
@@ -807,64 +1172,155 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
       {showGroupSettingsModal && selectedChat && (
         <div className="modal-overlay priority-modal">
           <div className="modal-content profile-modal group-settings-modal"> 
-            <h2>Ajustes del Grupo</h2>
+            {/* CABECERA DEL MODAL DE AJUSTES */}
+            <h2>
+                {selectedChat.isGroup ? 'Ajustes del Grupo' : 'Perfil y Ajustes'}
+            </h2>
             
-            {canEditGroup ? (
+            {selectedChat.isGroup ? (
               <>
-                <ProfileUploader 
-                    token={token}
-                    onUploadSuccess={handleGroupPicUpdate}
-                    onShowInfo={onShowInfo}
-                    uploaderId="group-pic-upload"
-                    uploadUrl={`${API_URL}/groups/${selectedChat._id}/avatar`}
-                    paramName="groupPic"
-                >
-                    <div className="profile-avatar-wrapper">
-                        <img 
-                            src={selectedChat.groupPictureUrl || DEFAULT_GROUP_PIC}
-                            alt="Grupo" 
-                            className="profile-modal-avatar"
-                        />
-                        <span className="edit-avatar-icon">✎</span>
-                    </div>
-                </ProfileUploader>
-                
-                <input
-                    type="text"
-                    value={tempGroupName}
-                    onChange={(e) => setTempGroupName(e.target.value)}
-                    className="username-input"
-                  />
+                {canEditGroup ? (
+                  <>
+                    <ProfileUploader 
+                        token={token}
+                        onUploadSuccess={handleGroupPicUpdate}
+                        onShowInfo={onShowInfo}
+                        uploaderId="group-pic-upload"
+                        uploadUrl={`${API_URL}/groups/${selectedChat._id}/avatar`}
+                        paramName="groupPic"
+                    >
+                        <div className="profile-avatar-wrapper">
+                            <img 
+                                src={selectedChat.groupPictureUrl || DEFAULT_GROUP_PIC}
+                                alt="Grupo" 
+                                className="profile-modal-avatar"
+                            />
+                            <span className="edit-avatar-icon">✎</span>
+                        </div>
+                    </ProfileUploader>
+                    
+                    <input
+                        type="text"
+                        value={tempGroupName}
+                        onChange={(e) => setTempGroupName(e.target.value)}
+                        className="username-input"
+                      />
+                  </>
+                ) : (
+                  <>
+                    <img 
+                      src={selectedChat.groupPictureUrl || DEFAULT_GROUP_PIC}
+                      alt="Grupo" 
+                      className="profile-modal-avatar"
+                      style={{cursor: 'default'}}
+                    />
+                    <h3>{selectedChat.groupName}</h3>
+                  </>
+                )}
               </>
             ) : (
+              // VISTA DE AJUSTES PARA CHAT PRIVADO
               <>
                 <img 
-                  src={selectedChat.groupPictureUrl || DEFAULT_GROUP_PIC}
-                  alt="Grupo" 
+                  src={getOtherParticipant(selectedChat.participants)?.profilePictureUrl || DEFAULT_PROFILE_PIC} 
+                  alt="Perfil" 
                   className="profile-modal-avatar"
                   style={{cursor: 'default'}}
                 />
-                <h3>{selectedChat.groupName}</h3>
+                <h3>{getOtherParticipant(selectedChat.participants)?.username}</h3>
+                <p style={{fontStyle: 'italic', color: '#777', margin: '0 0 20px 0'}}>{getOtherParticipant(selectedChat.participants)?.bio || "Sin presentación."}</p>
               </>
             )}
             
             <div className="group-settings-buttons">
-              <button className="view-members-btn" onClick={() => {
-                setShowGroupSettingsModal(false);
-                setShowMembersModal(true);
-              }}>
-                Ver Miembros
-              </button>
-              <button className="delete-btn" onClick={() => {
-                setDeletingConv(selectedChat);
-                setShowGroupSettingsModal(false);
-              }}>
-                Salir del Grupo
-              </button>
+              
+              {selectedChat.isGroup ? (
+                <>
+                  <button className="view-members-btn" onClick={() => {
+                    setShowGroupSettingsModal(false);
+                    setShowMembersModal(true);
+                  }}>
+                    Ver Miembros
+                  </button>
+                  <button className="delete-btn" onClick={() => {
+                    setDeletingConv(selectedChat);
+                    setShowGroupSettingsModal(false);
+                  }}>
+                    Salir del Grupo
+                  </button>
+                </>
+              ) : (
+                // BOTONES PARA CHAT PRIVADO EN EL MODAL
+                <>
+                  {(() => {
+                      const otherUser = getOtherParticipant(selectedChat.participants);
+                      // Botón Bloquear/Desbloquear
+                      if (otherUser && myBlockedUsers.includes(otherUser._id)) {
+                          return (
+                              <button 
+                                className="block-btn" 
+                                style={{backgroundColor: '#28a745'}} 
+                                onClick={() => {
+                                  setUnblockingUser(otherUser);
+                                  setShowGroupSettingsModal(false);
+                                }}
+                              >
+                                Desbloquear Usuario
+                              </button>
+                          );
+                      } else {
+                          return (
+                              <button 
+                                className="block-btn"
+                                onClick={() => {
+                                  setBlockingUser(otherUser);
+                                  setShowGroupSettingsModal(false);
+                                }}
+                              >
+                                Bloquear Usuario
+                              </button>
+                          );
+                      }
+                  })()}
+
+                  {/* Botón Desagregar */}
+                  <button 
+                    className="delete-btn"
+                    onClick={() => {
+                      setDeletingConv(selectedChat);
+                      setShowGroupSettingsModal(false);
+                    }}
+                  >
+                    Desagregar Usuario
+                  </button>
+
+                  {/* --- BOTÓN: BLOQUEAR Y DESAGREGAR --- */}
+                  {(() => {
+                      const otherUser = getOtherParticipant(selectedChat.participants);
+                      if (otherUser && !myBlockedUsers.includes(otherUser._id)) {
+                        return (
+                          <button 
+                            className="delete-btn"
+                            style={{backgroundColor: '#dc3545', color: 'white', borderColor: '#dc3545', marginTop: '10px'}}
+                            onClick={() => {
+                                setBlockAndUnfriendUser(otherUser);
+                                setShowGroupSettingsModal(false);
+                            }}
+                          >
+                            Bloquear y Desagregar
+                          </button>
+                        );
+                      }
+                      return null;
+                  })()}
+                  {/* ------------------------------------------ */}
+                </>
+              )}
+
             </div>
             
-            <div className="modal-buttons">
-              {canEditGroup && (
+            <div className={`modal-buttons ${selectedChat.isGroup && canEditGroup ? '' : 'single-button'}`}>
+              {selectedChat.isGroup && canEditGroup && (
                 <button 
                   className="confirm-logout" 
                   onClick={handleSaveGroupDetails}
@@ -874,7 +1330,7 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                 </button>
               )}
               <button className="cancel-delete" onClick={() => setShowGroupSettingsModal(false)}>
-                {canEditGroup ? 'Cancelar' : 'Cerrar'}
+                {selectedChat.isGroup && canEditGroup ? 'Cancelar' : 'Cerrar'}
               </button>
             </div>
           </div>
@@ -891,95 +1347,126 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
             </button>
           </div>
           
-          <div className="search-area">
-            <input 
-              type="text"
-              placeholder="Buscar usuario..."
-              value={searchQuery}
-              onChange={handleSearch}
-            />
-            <ul className="search-results">
-              {searchResults.map(user => (
-                <li key={user._id} onClick={() => setPendingUser(user)}>
-                  {user.username} (Iniciar chat)
-                </li>
-              ))}
-            </ul>
-            {pendingUser && (
-              <div className="confirmation-box">
-                <p>Enviar solicitud a <strong>{pendingUser.username}</strong>?</p>
-                <button onClick={() => handleStartChat(pendingUser)}>Sí</button>
-                <button className="cancel" onClick={() => setPendingUser(null)}>
-                  No
-                </button>
-              </div>
-            )}
-          </div>
-          <div className="chat-requests">
-            <h3>Solicitudes de Chat</h3>
-            <ul>
-              {chatRequests.map((req) => (
-                <li key={req._id} className="chat-request-item">
-                  <span>{req.initiatedBy ? req.initiatedBy.username : 'Usuario'}</span>
-                  <button onClick={() => handleAcceptChat(req)}>Aceptar</button>
-                </li>
-              ))}
-              {chatRequests.length === 0 && <p className="no-requests">No hay nuevas solicitudes.</p>}
-            </ul>
+          <div className="search-btn-wrapper" style={{padding: '10px', borderBottom: '1px solid var(--border-color)'}}>
+            <button 
+                className="create-group-btn" 
+                style={{backgroundColor: 'var(--accent-primary)'}}
+                onClick={() => setShowSearchModal(true)}
+            >
+                Buscar Usuarios 🔍
+            </button>
           </div>
 
-          <h3>Grupos</h3>
-          <ul className="group-list">
-            {groupChats.map((conv) => {
-              const count = (conv.unreadCounts && conv.unreadCounts[userId]) || 0;
-              return (
-                <li 
-                  key={conv._id}
-                  onClick={() => handleSelectChat(conv)}
-                  className={selectedChat?._id === conv._id ? 'selected' : ''}
-                >
-                  <span className="conv-name-wrapper">
-                    <img src={conv.groupPictureUrl || DEFAULT_GROUP_PIC} alt="Grupo" className="avatar-in-list offline" />
-                    <span className="conv-name">{conv.groupName}</span>
-                  </span>
-                  {count > 0 && <span className="unread-badge">{count}</span>}
-                </li>
-              );
-            })}
-            {groupChats.length === 0 && <p className="no-requests">No hay grupos.</p>}
-          </ul>
+          {/* ---------------- SECCIONES CORREDIZAS (ACORDEÓN) ---------------- */}
+          
+          {/* SECCIÓN GRUPOS */}
+          <div 
+             className="section-header" 
+             onClick={() => setIsGroupsOpen(!isGroupsOpen)}
+             style={{
+                padding: '15px', 
+                borderBottom: '1px solid var(--border-color)', 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                cursor: 'pointer',
+                backgroundColor: 'var(--bg-tertiary)',
+                fontWeight: 'bold',
+                color: 'var(--text-secondary)',
+                fontSize: '0.9rem',
+                letterSpacing: '1px'
+             }}
+          >
+             <span>GRUPOS</span>
+             <span>{isGroupsOpen ? '▲' : '▼'}</span>
+          </div>
+          
+          {isGroupsOpen && (
+             <ul className="group-list">
+               {groupChats.length === 0 ? (
+                  <p className="no-requests" style={{padding: '15px'}}>No hay grupos.</p>
+               ) : (
+                 groupChats.map((conv) => {
+                    const count = (conv.unreadCounts && conv.unreadCounts[userId]) || 0;
+                    return (
+                      <li 
+                        key={conv._id}
+                        onClick={() => handleSelectChat(conv)}
+                        className={selectedChat?._id === conv._id ? 'selected' : ''}
+                      >
+                        <span className="conv-name-wrapper">
+                          <img src={conv.groupPictureUrl || DEFAULT_GROUP_PIC} alt="Grupo" className="avatar-in-list offline" />
+                          <span className="conv-name">{conv.groupName}</span>
+                        </span>
+                        {count > 0 && <span className="unread-badge">{count}</span>}
+                      </li>
+                    );
+                 })
+               )}
+             </ul>
+          )}
 
-          <h3>Conversaciones</h3>
-          <ul>
-            {conversations.map((conv) => {
-              const otherUser = getOtherParticipant(conv.participants);
-              const displayName = otherUser ? otherUser.username : 'Usuario';
-              const isOnline = otherUser && onlineUsersMap.hasOwnProperty(String(otherUser._id));
-              
-              const count = (conv.unreadCounts && conv.unreadCounts[userId]) || 0;
-              const avatarUrl = (otherUser && otherUser.profilePictureUrl) || DEFAULT_PROFILE_PIC;
-              
-              return (
-                <li 
-                  key={conv._id}
-                  onClick={() => handleSelectChat(conv)}
-                  className={selectedChat?._id === conv._id ? 'selected' : ''}
-                >
-                  <span className="conv-name-wrapper">
-                    <img 
-                      src={avatarUrl} 
-                      alt={displayName} 
-                      className={`avatar-in-list ${isOnline ? 'online' : 'offline'}`} 
-                    />
-                    <span className="conv-name">{displayName}</span>
-                  </span>
-                  {count > 0 && <span className="unread-badge">{count}</span>}
-                </li>
-              );
-            })}
-             {conversations.length === 0 && <p className="no-requests">No hay conversaciones.</p>}
-          </ul>
+          {/* SECCIÓN CONVERSACIONES */}
+          <div 
+             className="section-header" 
+             onClick={() => setIsConversationsOpen(!isConversationsOpen)}
+             style={{
+                padding: '15px', 
+                borderBottom: '1px solid var(--border-color)', 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                cursor: 'pointer',
+                backgroundColor: 'var(--bg-tertiary)',
+                fontWeight: 'bold',
+                color: 'var(--text-secondary)',
+                fontSize: '0.9rem',
+                letterSpacing: '1px'
+             }}
+          >
+             <span>CONVERSACIONES</span>
+             <span>{isConversationsOpen ? '▲' : '▼'}</span>
+          </div>
+
+          {isConversationsOpen && (
+             <ul className="conversation-list-ul">
+               {conversations.length === 0 ? (
+                  <p className="no-requests" style={{padding: '15px'}}>No hay conversaciones.</p>
+               ) : (
+                 conversations.map((conv) => {
+                    const otherUser = getOtherParticipant(conv.participants);
+                    const displayName = otherUser ? otherUser.username : 'Usuario';
+                    
+                    const hasBlock = conv.hasBlock; 
+                    const isOnline = !hasBlock && otherUser && onlineUsersMap.hasOwnProperty(String(otherUser._id));
+                    
+                    const count = (conv.unreadCounts && conv.unreadCounts[userId]) || 0;
+                    const avatarUrl = (otherUser && otherUser.profilePictureUrl) || DEFAULT_PROFILE_PIC;
+                    
+                    return (
+                      <li 
+                        key={conv._id}
+                        onClick={() => handleSelectChat(conv)}
+                        className={selectedChat?._id === conv._id ? 'selected' : ''}
+                      >
+                        <span className="conv-name-wrapper">
+                          <img 
+                            src={avatarUrl} 
+                            alt={displayName} 
+                            className={`avatar-in-list ${isOnline ? 'online' : 'offline'}`} 
+                          />
+                          <span className="conv-name">{displayName}</span>
+                        </span>
+                        {count > 0 && <span className="unread-badge">{count}</span>}
+                      </li>
+                    );
+                 })
+               )}
+             </ul>
+          )}
+
         </div>
+
         <div className="chat-window">
           {selectedChat ? (
             <>
@@ -991,30 +1478,12 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                 </h4>
                 {selectedChat.status === 'active' && (
                   <div className="chat-header-options">
-                    
-                    {selectedChat.isGroup ? (
-                      <button 
-                        className="group-settings-btn"
-                        onClick={() => setShowGroupSettingsModal(true)}
-                      >
-                        Ajustes ⚙️
-                      </button>
-                    ) : (
-                      <>
-                        <button 
-                          className="block-btn"
-                          onClick={() => setBlockingUser(getOtherParticipant(selectedChat.participants))}
-                        >
-                          Bloquear
-                        </button>
-                        <button 
-                          className="delete-btn"
-                          onClick={() => setDeletingConv(selectedChat)}
-                        >
-                          Eliminar Chat
-                        </button>
-                      </>
-                    )}
+                    <button 
+                      className="group-settings-btn"
+                      onClick={() => setShowGroupSettingsModal(true)}
+                    >
+                      {selectedChat.isGroup ? 'Ajustes del Grupo ⚙️' : 'Perfil y Ajustes ⚙️'}
+                    </button>
                   </div>
                 )}
               </div>
@@ -1056,12 +1525,14 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                   <div className="message-input-area">
                     <input 
                       type="text" 
-                      placeholder="Escribe un mensaje..."
+                      placeholder={isChatBlocked ? "No puedes escribir en este chat." : "Escribe un mensaje..."}
                       value={newMessage}
+                      disabled={isChatBlocked}
                       onChange={(e) => setNewMessage(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                      style={isChatBlocked ? {backgroundColor: '#f0f0f0', cursor: 'not-allowed'} : {}}
                     />
-                    <button onClick={handleSendMessage}>Enviar</button>
+                    <button onClick={handleSendMessage} disabled={isChatBlocked}>Enviar</button>
                   </div>
                 </>
               ) : (
