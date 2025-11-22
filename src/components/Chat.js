@@ -18,7 +18,7 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   
-  // --- Estados de Búsqueda ---
+  // --- Estado de Búsqueda ---
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
@@ -28,8 +28,8 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
   const [isChatBlocked, setIsChatBlocked] = useState(false);
 
   // --- Estados de la Interfaz (Acordeón) ---
-  const [isGroupsOpen, setIsGroupsOpen] = useState(true); // <--- NUEVO
-  const [isConversationsOpen, setIsConversationsOpen] = useState(true); // <--- NUEVO
+  const [isGroupsOpen, setIsGroupsOpen] = useState(true); 
+  const [isConversationsOpen, setIsConversationsOpen] = useState(true); 
 
   const [deletingConv, setDeletingConv] = useState(null); 
   const [blockingUser, setBlockingUser] = useState(null); 
@@ -132,7 +132,6 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     
     const handleRequestAccepted = (acceptedChat) => {
       const otherUser = acceptedChat.participants.find(p => p._id !== userId);
-      // Notificar solo si fui el iniciador
       const isInitiator = acceptedChat.initiatedBy._id === userId;
 
       if (isInitiator && otherUser && onAddNotification) {
@@ -819,9 +818,9 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     : [];
 
   return (
-    <div className="chat-container">
-
-      {/* --- MODAL DE BÚSQUEDA DE USUARIOS --- */}
+    <div className={`chat-container ${selectedChat ? 'chat-active' : ''}`}>
+      
+      {/* MODAL DE BÚSQUEDA DE USUARIOS */}
       {showSearchModal && (
         <div className="modal-overlay top-priority-modal">
           <div className="modal-content" style={{maxHeight: '80vh', display: 'flex', flexDirection: 'column'}}>
@@ -863,7 +862,6 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                 )}
              </ul>
              
-             {/* --- TARJETA DE CONFIRMACIÓN SOBRE LA BÚSQUEDA --- */}
              {pendingUser && (
               <div className="search-confirm-overlay">
                 <div className="search-confirm-card">
@@ -894,6 +892,7 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
         </div>
       )}
       
+      {/* --- MODALES DE CONFIRMACIÓN Y ACCIÓN --- */}
       {deletingConv && (
         <div className="modal-overlay priority-modal">
           <div className="modal-content delete-conv">
@@ -946,7 +945,6 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
         </div>
       )}
 
-      {/* --- NUEVO MODAL: BLOQUEAR Y DESAGREGAR --- */}
       {blockAndUnfriendUser && (
         <div className="modal-overlay priority-modal">
             <div className="modal-content delete-conv">
@@ -967,7 +965,6 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
         </div>
       )}
 
-      {/* --- MODAL VER PERFIL DE MIEMBRO --- */}
       {viewingMember && (
         <div className="modal-overlay top-priority-modal">
             <div className="modal-content profile-modal">
@@ -1172,7 +1169,6 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
       {showGroupSettingsModal && selectedChat && (
         <div className="modal-overlay priority-modal">
           <div className="modal-content profile-modal group-settings-modal"> 
-            {/* CABECERA DEL MODAL DE AJUSTES */}
             <h2>
                 {selectedChat.isGroup ? 'Ajustes del Grupo' : 'Perfil y Ajustes'}
             </h2>
@@ -1219,7 +1215,6 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                 )}
               </>
             ) : (
-              // VISTA DE AJUSTES PARA CHAT PRIVADO
               <>
                 <img 
                   src={getOtherParticipant(selectedChat.participants)?.profilePictureUrl || DEFAULT_PROFILE_PIC} 
@@ -1250,11 +1245,9 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                   </button>
                 </>
               ) : (
-                // BOTONES PARA CHAT PRIVADO EN EL MODAL
                 <>
                   {(() => {
                       const otherUser = getOtherParticipant(selectedChat.participants);
-                      // Botón Bloquear/Desbloquear
                       if (otherUser && myBlockedUsers.includes(otherUser._id)) {
                           return (
                               <button 
@@ -1283,7 +1276,6 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                       }
                   })()}
 
-                  {/* Botón Desagregar */}
                   <button 
                     className="delete-btn"
                     onClick={() => {
@@ -1294,7 +1286,6 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                     Desagregar Usuario
                   </button>
 
-                  {/* --- BOTÓN: BLOQUEAR Y DESAGREGAR --- */}
                   {(() => {
                       const otherUser = getOtherParticipant(selectedChat.participants);
                       if (otherUser && !myBlockedUsers.includes(otherUser._id)) {
@@ -1313,7 +1304,6 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                       }
                       return null;
                   })()}
-                  {/* ------------------------------------------ */}
                 </>
               )}
 
@@ -1338,7 +1328,7 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
       )}
       
       
-      <div className="chat-layout">
+      <div className={`chat-layout ${selectedChat ? 'chat-active' : ''}`}>
         <div className="conversations-list">
           
           <div className="create-group-wrapper">
@@ -1357,9 +1347,6 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
             </button>
           </div>
 
-          {/* ---------------- SECCIONES CORREDIZAS (ACORDEÓN) ---------------- */}
-          
-          {/* SECCIÓN GRUPOS */}
           <div 
              className="section-header" 
              onClick={() => setIsGroupsOpen(!isGroupsOpen)}
@@ -1384,7 +1371,7 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
           {isGroupsOpen && (
              <ul className="group-list">
                {groupChats.length === 0 ? (
-                  <p className="no-requests" style={{padding: '15px'}}>No hay grupos.</p>
+                  <p className="no-requests" style={{padding: '15px', textAlign: 'center', fontStyle: 'italic', color: '#777'}}>No hay grupos.</p>
                ) : (
                  groupChats.map((conv) => {
                     const count = (conv.unreadCounts && conv.unreadCounts[userId]) || 0;
@@ -1406,7 +1393,6 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
              </ul>
           )}
 
-          {/* SECCIÓN CONVERSACIONES */}
           <div 
              className="section-header" 
              onClick={() => setIsConversationsOpen(!isConversationsOpen)}
@@ -1431,7 +1417,7 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
           {isConversationsOpen && (
              <ul className="conversation-list-ul">
                {conversations.length === 0 ? (
-                  <p className="no-requests" style={{padding: '15px'}}>No hay conversaciones.</p>
+                  <p className="no-requests" style={{padding: '15px', textAlign: 'center', fontStyle: 'italic', color: '#777'}}>No hay conversaciones.</p>
                ) : (
                  conversations.map((conv) => {
                     const otherUser = getOtherParticipant(conv.participants);
@@ -1471,6 +1457,9 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
           {selectedChat ? (
             <>
               <div className="chat-window-header">
+                {/* --- BOTÓN ATRÁS (MÓVIL) --- */}
+                <button className="back-button" onClick={() => setSelectedChat(null)}>⬅</button>
+
                 <h4>
                   {selectedChat.isGroup 
                     ? selectedChat.groupName 
@@ -1482,7 +1471,7 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                       className="group-settings-btn"
                       onClick={() => setShowGroupSettingsModal(true)}
                     >
-                      {selectedChat.isGroup ? 'Ajustes del Grupo ⚙️' : 'Perfil y Ajustes ⚙️'}
+                      {selectedChat.isGroup ? 'Ajustes ⚙️' : 'Perfil ⚙️'}
                     </button>
                   </div>
                 )}
