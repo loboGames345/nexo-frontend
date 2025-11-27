@@ -354,11 +354,11 @@
 .chat-layout {
   display: flex;
   border: 1px solid var(--border-color);
-  height: 70vh;
+  height: 90vh;
   border-radius: 8px;
   overflow: hidden;
   background-color: var(--bg-primary);
-  position: relative; /* Necesario para móvil */
+  position: relative; 
 }
 .conversations-list {
   flex: 0 0 280px;
@@ -366,6 +366,7 @@
   background: var(--bg-secondary);
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
 }
 .section-header {
     padding: 12px 15px;
@@ -380,6 +381,10 @@
     font-size: 0.85rem;
     letter-spacing: 0.5px;
     transition: background 0.2s;
+    /* Header pegajoso */
+    position: sticky;
+    top: 0;
+    z-index: 5;
 }
 .section-header:hover {
     background-color: var(--bg-hover);
@@ -388,8 +393,6 @@
   list-style: none;
   padding: 0;
   margin: 0;
-  overflow-y: auto;
-  flex: 1;
 }
 .conversations-list li {
   padding: 12px 15px;
@@ -497,6 +500,18 @@
 .chat-header-options button:hover {
   background: var(--bg-hover);
 }
+
+/* ESTILOS BOTONES CABECERA EN MODO BORRADO */
+.chat-header-options.delete-mode-options {
+    display: flex;
+    align-items: center;
+}
+.chat-header-options.delete-mode-options .confirm-delete-btn:disabled {
+    background-color: var(--bg-tertiary) !important;
+    color: var(--text-secondary) !important;
+    cursor: not-allowed;
+}
+
 .chat-window > p {
   padding: 40px;
   text-align: center;
@@ -584,6 +599,19 @@
   line-height: 1.4;
   word-wrap: break-word;
 }
+
+/* --- Estilo para Mensaje Seleccionado en Modo Borrar --- */
+.message.msg-selected .message-content {
+    border: 2px solid var(--accent-danger);
+    box-shadow: 0 0 10px rgba(220, 53, 69, 0.3);
+    /* Opcional: un pequeño glow rojo */
+}
+.msg-checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .message-input-area {
   display: flex;
   padding: 10px;
@@ -1468,4 +1496,415 @@
       width: auto;
       z-index: 2000;
   }
+}
+
+/* --- ESTILOS PARA ADJUNTOS DE CHAT Y VISOR --- */
+
+.camera-btn {
+  margin-left: 0 !important; 
+  margin-right: 10px;
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color) !important;
+  padding: 0 12px !important;
+  font-size: 1.2rem !important;
+  border-radius: 50% !important; 
+  width: 45px;
+  height: 45px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.camera-btn:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+/* Área de Vista Previa (encima del input) */
+.file-preview-area {
+  padding: 10px;
+  background-color: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+}
+.preview-item {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--bg-primary);
+  flex-shrink: 0;
+}
+.preview-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.video-icon-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  text-align: center;
+  background: #000;
+  color: #fff;
+}
+.remove-preview {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: rgba(0,0,0,0.7);
+  color: white;
+  border: none;
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Imágenes/Videos dentro del mensaje */
+.message-media-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 5px;
+}
+.media-item {
+  max-width: 100%;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.media-item:hover {
+  opacity: 0.9;
+}
+.media-item.image {
+  max-height: 200px;
+  object-fit: contain;
+}
+.media-item.video {
+  max-height: 250px;
+  width: 100%;
+}
+
+/* --- ESTILOS LIGHTBOX (Visor de Imágenes) --- */
+
+.lightbox-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: rgba(0, 0, 0, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 3000; /* Por encima de todo */
+  animation: fadeIn 0.2s ease-in;
+}
+
+.lightbox-content {
+  position: relative;
+  max-width: 95vw;
+  max-height: 95vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.lightbox-media {
+  max-width: 100%;
+  max-height: 90vh;
+  border-radius: 5px;
+  box-shadow: 0 0 20px rgba(0,0,0,0.5);
+}
+
+.lightbox-close {
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  background: none;
+  border: none;
+  color: white;
+  font-size: 2rem;
+  cursor: pointer;
+  z-index: 3001;
+}
+
+/* Menú de opciones dentro del Lightbox */
+.lightbox-menu-container {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.lightbox-menu-btn {
+  background: rgba(0,0,0,0.5);
+  border: none;
+  color: white;
+  border-radius: 50%;
+  width: 35px;
+  height: 35px;
+  font-size: 1.5rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.lightbox-menu-btn:hover {
+  background: rgba(0,0,0,0.8);
+}
+
+.lightbox-menu-dropdown {
+  position: absolute;
+  top: 40px;
+  right: 0;
+  background-color: #fff;
+  border-radius: 5px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  overflow: hidden;
+  width: 180px;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.1s ease-out;
+}
+
+.lightbox-menu-dropdown button {
+  padding: 12px;
+  text-align: left;
+  border: none;
+  background: none;
+  font-size: 0.95rem;
+  cursor: pointer;
+  color: #333;
+  border-bottom: 1px solid #eee;
+}
+
+.lightbox-menu-dropdown button:hover {
+  background-color: #f5f5f5;
+}
+
+.lightbox-menu-dropdown button.delete-option {
+  color: #dc3545;
+}
+
+.lightbox-menu-dropdown button.delete-option:hover {
+  background-color: #fff5f5;
+}
+
+/* En modo oscuro, adaptar el menú */
+.dark-mode .lightbox-menu-dropdown {
+  background-color: #2a2a2a;
+  border: 1px solid #444;
+}
+.dark-mode .lightbox-menu-dropdown button {
+  color: #f1f1f1;
+  border-bottom: 1px solid #444;
+}
+.dark-mode .lightbox-menu-dropdown button:hover {
+  background-color: #333;
+}
+.dark-mode .lightbox-menu-dropdown button.delete-option:hover {
+  background-color: #3a2a2a;
+}
+/* =========================================
+   NUEVOS ESTILOS (FECHA Y HORA)
+   ========================================= */
+
+/* 1. Estilo para el separador de fecha (ej: "Lunes, 25 de...") */
+.date-separator {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0;
+  width: 100%;
+}
+
+.date-separator span {
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  padding: 4px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-light);
+  text-transform: capitalize; /* Pone la primera letra en mayúscula */
+}
+
+.msg-timestamp {
+  display: block;
+  font-size: 0.65rem;       /* Letra pequeñita */
+  text-align: right;        /* Alineado a la derecha */
+  margin-top: 4px;
+  opacity: 0.7;             /* Un poco transparente para que no distraiga */
+  color: inherit;           /* Hereda el color del texto del mensaje */
+}
+
+/* 3. Ajuste para que la burbuja tenga espacio para la hora */
+.message-content {
+  min-width: 80px;          /* Ancho mínimo para que quepa la hora */
+  position: relative;
+}
+/* =========================================
+   NUEVO DISEÑO: MENSAJES NO LEÍDOS (MODERNO)
+   ========================================= */
+
+@keyframes slideInFade {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.unread-separator {
+  width: 100%;
+  margin: 25px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  animation: slideInFade 0.5s ease-out forwards;
+}
+
+/* Líneas laterales que se desvanecen */
+.unread-separator::before,
+.unread-separator::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-primary), transparent);
+  opacity: 0.3;
+}
+
+/* La píldora central con el texto */
+.unread-separator span {
+  background-color: var(--bg-secondary);
+  color: var(--accent-primary);
+  
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  
+  padding: 6px 16px;
+  border-radius: 20px;
+  
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); 
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  
+  margin: 0 15px;
+  z-index: 2;
+}
+
+/* Ajuste para modo oscuro */
+.dark-mode .unread-separator span {
+  background-color: var(--bg-tertiary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* BOTÓN DE ADJUNTAR (CLIP) */
+.attach-btn {
+  margin-left: 0 !important;
+  margin-right: 5px; /* Pegado al de cámara */
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color) !important;
+  padding: 0 !important;
+  font-size: 1.2rem !important;
+  border-radius: 50% !important;
+  width: 45px;
+  height: 45px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.attach-btn:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+/* TARJETA DE DOCUMENTO (En el chat) */
+.document-card {
+    display: flex;
+    align-items: center;
+    background-color: rgba(0, 0, 0, 0.05); /* Fondo sutil */
+    border: 1px solid rgba(0,0,0,0.1);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 5px;
+    width: 100%;
+    max-width: 300px;
+}
+.dark-mode .document-card {
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.doc-icon-img {
+    width: 40px;        /* Tamaño del icono */
+    height: 40px;
+    margin-right: 12px;
+    object-fit: contain; /* Para que no se deforme */
+    flex-shrink: 0;      /* Para que no se aplaste si el nombre es largo */
+}
+
+.doc-info {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex: 1;
+}
+
+.doc-name {
+    font-weight: bold;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+    color: inherit;
+}
+
+.doc-download-btn {
+    font-size: 0.8rem;
+    color: var(--accent-primary);
+    text-decoration: none;
+    font-weight: bold;
+}
+.doc-download-btn:hover {
+    text-decoration: underline;
+}
+
+/* --- BOTÓN DE DESCARGAR DOCUMENTO (MEJORADO) --- */
+.doc-download-btn {
+  background-color: var(--accent-primary); /* Color azul del tema */
+  color: white;
+  border: none;
+  padding: 8px 16px;       /* Más grande y cómodo */
+  border-radius: 20px;     /* Bordes redondos (tipo píldora) */
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: bold;
+  margin-top: 8px;
+  display: inline-block;   /* Para que respete el padding */
+  transition: transform 0.1s, background-color 0.2s;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2); /* Sombrita para que resalte */
+}
+
+.doc-download-btn:hover {
+  background-color: var(--accent-primary-hover); /* Azul más oscuro al pasar el mouse */
+  transform: translateY(-1px); /* Efecto de "levantarse" */
+  text-decoration: none;
+}
+
+.doc-download-btn:active {
+  transform: translateY(1px); /* Efecto de clic */
 }

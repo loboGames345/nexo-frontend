@@ -10,6 +10,9 @@ const DEFAULT_GROUP_PIC = 'https://cdn.pixabay.com/photo/2016/11/14/17/39/group-
 
 function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, onlineUsersMap, onAddNotification }) {
 
+  const docInputRef = useRef(null);
+
+  // --- ESTADOS PRINCIPALES ---
   const [chatRequests, setChatRequests] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [groupChats, setGroupChats] = useState([]);
@@ -18,19 +21,42 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   
-  // --- Estado de Búsqueda ---
+// --- ESTADOS PARA SCROLL INTELIGENTE ---
+  const [initialUnreadCount, setInitialUnreadCount] = useState(0); // Recuerda cuántos había
+  const unreadMarkerRef = useRef(null); // Referencia invisible para hacer scroll
+
+  // --- ESTADO PARA MODAL DE BORRADO MASIVO ---
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+
+  // --- ESTADOS PARA ARCHIVOS Y VISOR ---
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [previews, setPreviews] = useState([]);
+  const [isSending, setIsSending] = useState(false);
+  const fileInputRef = useRef(null);
+
+  // Estado del Visor de Imágenes (Lightbox)
+  const [expandedMedia, setExpandedMedia] = useState(null); 
+  const [showMediaOptions, setShowMediaOptions] = useState(false);
+  
+  // --- ESTADOS DE BORRADO MASIVO ---
+  const [isDeleteMode, setIsDeleteMode] = useState(false);
+  const [selectedMsgIds, setSelectedMsgIds] = useState([]);
+
+  // --- ESTADOS DE BÚSQUEDA ---
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [pendingUser, setPendingUser] = useState(null);
   
+  // --- ESTADOS DE BLOQUEO ---
   const [myBlockedUsers, setMyBlockedUsers] = useState([]); 
   const [isChatBlocked, setIsChatBlocked] = useState(false);
 
-  // --- Estados de la Interfaz (Acordeón) ---
+  // --- ESTADOS DE INTERFAZ (ACORDEÓN) ---
   const [isGroupsOpen, setIsGroupsOpen] = useState(true); 
   const [isConversationsOpen, setIsConversationsOpen] = useState(true); 
 
+  // --- ESTADOS DE MODALES DE ACCIÓN ---
   const [deletingConv, setDeletingConv] = useState(null); 
   const [blockingUser, setBlockingUser] = useState(null); 
   const [unblockingUser, setUnblockingUser] = useState(null);
@@ -39,6 +65,7 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
 
   const [viewingMember, setViewingMember] = useState(null);
 
+  // --- ESTADOS DE GESTIÓN DE GRUPOS ---
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupMembers, setNewGroupMembers] = useState([]);
@@ -53,13 +80,20 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
 
   const messagesEndRef = useRef(null);
 
+  // --- EFECTOS (USE EFFECT) ---
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+// --- SCROLL INTELIGENTE ---
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (initialUnreadCount > 0 && unreadMarkerRef.current) {
+        unreadMarkerRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    } else {
+        scrollToBottom();
+    }
+  }, [messages, previews, initialUnreadCount]);
 
   useEffect(() => {
     const fetchBlockedUsers = async () => {
@@ -114,6 +148,7 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     }
   }, [socket, userId, username]);
 
+  // --- SOCKET LISTENERS ---
   useEffect(() => {
     if (!socket) return;
 
@@ -240,22 +275,18 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     };
 
     const handleUserProfileUpdated = (updatedUser) => {
-        setConversations(prev => prev.map(conv => ({
+        const updateList = (list) => list.map(conv => ({
             ...conv,
             participants: conv.participants.map(p => 
                 p._id === updatedUser.userId 
                 ? { ...p, username: updatedUser.username, bio: updatedUser.bio, profilePictureUrl: updatedUser.profilePictureUrl }
                 : p
             )
-        })));
-        setGroupChats(prev => prev.map(conv => ({
-            ...conv,
-            participants: conv.participants.map(p => 
-                p._id === updatedUser.userId 
-                ? { ...p, username: updatedUser.username, bio: updatedUser.bio, profilePictureUrl: updatedUser.profilePictureUrl }
-                : p
-            )
-        })));
+        }));
+        
+        setConversations(prev => updateList(prev));
+        setGroupChats(prev => updateList(prev));
+        
         setSelectedChat(prev => {
             if (!prev) return null;
             const isParticipant = prev.participants.some(p => p._id === updatedUser.userId);
@@ -271,6 +302,37 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
         });
     };
 
+    // --- LISTENER PARA ACTUALIZAR MENSAJES (SOFT DELETE) ---
+    const handleMessageUpdated = (updatedMsg) => {
+        if (selectedChat && selectedChat._id === updatedMsg.conversationId) {
+            setMessages(prev => prev.map(m => m._id === updatedMsg._id ? updatedMsg : m));
+            
+            // Si el mensaje actualizado es el que se está viendo expandido, cerrar el visor
+            if (expandedMedia && expandedMedia.messageId === updatedMsg._id) {
+                closeExpandedView();
+                onShowInfo("Este mensaje ha sido eliminado por el usuario.");
+            }
+        }
+    };
+
+    // --- LISTENER PARA BULK UPDATE ---
+    const handleMessagesBulkUpdated = (updatedMessagesList) => {
+        if (selectedChat && updatedMessagesList.length > 0 && updatedMessagesList[0].conversationId === selectedChat._id) {
+            setMessages(prevMessages => {
+                return prevMessages.map(msg => {
+                    const updated = updatedMessagesList.find(u => u._id === msg._id);
+                    return updated ? updated : msg;
+                });
+            });
+        }
+    };
+
+    const handleMessageDeleted = ({ messageId, conversationId }) => {
+        if (selectedChat && selectedChat._id === conversationId) {
+            setMessages(prev => prev.filter(m => m._id !== messageId));
+        }
+    };
+
     socket.on('newChatRequest', handleNewRequest);
     socket.on('chatRequestAccepted', handleRequestAccepted);
     socket.on('chatReadded', handleChatReadded);
@@ -281,6 +343,9 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     socket.on('unblockedBy', handleUnblockedBy);
     socket.on('unfriendedBy', handleUnfriendedBy);
     socket.on('userProfileUpdated', handleUserProfileUpdated);
+    socket.on('messageDeleted', handleMessageDeleted); 
+    socket.on('messageUpdated', handleMessageUpdated); 
+    socket.on('messagesBulkUpdated', handleMessagesBulkUpdated);
 
     return () => {
       socket.off('newChatRequest', handleNewRequest);
@@ -293,8 +358,11 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
       socket.off('unblockedBy', handleUnblockedBy);
       socket.off('unfriendedBy', handleUnfriendedBy);
       socket.off('userProfileUpdated', handleUserProfileUpdated);
+      socket.off('messageDeleted', handleMessageDeleted);
+      socket.off('messageUpdated', handleMessageUpdated);
+      socket.off('messagesBulkUpdated', handleMessagesBulkUpdated);
     };
-  }, [socket, onShowInfo, selectedChat, userId, onAddNotification]);
+  }, [socket, onShowInfo, selectedChat, userId, onAddNotification, expandedMedia]);
   
   useEffect(() => {
     if (!socket) return;
@@ -328,6 +396,8 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     };
   }, [socket, selectedChat]);
 
+  // --- FUNCIONES AUXILIARES ---
+
   const checkBlockStatus = async (otherUserId) => {
       try {
           const response = await axios.get(`${API_URL}/users/${otherUserId}/check-block`, {
@@ -340,16 +410,29 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
       }
   };
 
-  const handleSelectChat = async (conversation) => {
+const handleSelectChat = async (conversation) => {
+    // 1. Si no es activo, solo lo seleccionamos
     if (conversation.status !== 'active') {
        setSelectedChat(conversation);
        setMessages([]);
+       setInitialUnreadCount(0); // Reset
        return; 
     }
+
+    // 2. CAPTURAR EL CONTADOR ANTES DE QUE SE BORRE
+    const currentUnread = (conversation.unreadCounts && conversation.unreadCounts[userId]) || 0;
+    setInitialUnreadCount(currentUnread);
+
     setSelectedChat(conversation);
     setInviteMembers([]);
     setTempGroupName(conversation.groupName || '');
     setIsChatBlocked(false);
+    
+    // Limpiar estados al cambiar de chat
+    setSelectedFiles([]);
+    setPreviews([]);
+    setIsDeleteMode(false);
+    setSelectedMsgIds([]);
 
     if (!conversation.isGroup) {
         const otherUser = getOtherParticipant(conversation.participants);
@@ -388,24 +471,257 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     }
   };
 
+  // --- FUNCIONES PARA MANEJO DE ARCHIVOS ---
+
+const handleFileSelect = (e, isDoc = false) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    // Validación 1: Máximo de archivos
+    if (files.length + selectedFiles.length > 5) {
+        onShowInfo("Máximo 5 archivos por mensaje.");
+        return;
+    }
+
+    // Validación 2: Seguridad (.exe)
+    const hasExe = files.some(f => f.name.toLowerCase().endsWith('.exe'));
+    if (hasExe) {
+        onShowInfo("No se permiten archivos ejecutables (.exe).");
+        return;
+    }
+
+    // Validación 3: Si es DOCUMENTO, no permitir imágenes/videos
+    if (isDoc) {
+        const hasMedia = files.some(f => f.type.startsWith('image/') || f.type.startsWith('video/'));
+        if (hasMedia) {
+            onShowInfo("Para imágenes y videos, por favor usa el botón de cámara 📷.");
+            // Limpiamos el input para que pueda intentar de nuevo
+            if(docInputRef.current) docInputRef.current.value = "";
+            return;
+        }
+    }
+
+    setSelectedFiles(prev => [...prev, ...files]);
+
+    const newPreviews = files.map(file => {
+        let type = 'image';
+        if (file.type.startsWith('video/')) type = 'video';
+        else if (!file.type.startsWith('image/')) type = 'document';
+
+        return {
+            url: type === 'document' ? null : URL.createObjectURL(file),
+            type: type,
+            name: file.name
+        };
+    });
+    setPreviews(prev => [...prev, ...newPreviews]);
+  };
+
+  const clearFiles = () => {
+    setSelectedFiles([]);
+    setPreviews([]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !selectedChat || selectedChat.status !== 'active') return;
+    if ((!newMessage.trim() && selectedFiles.length === 0) || !selectedChat || selectedChat.status !== 'active') return;
     if (isChatBlocked) return; 
 
+    setIsSending(true);
+
     try {
-      await axios.post(
-        `${API_URL}/conversations/${selectedChat._id}/messages`,
-        { content: newMessage },
-        { headers: { 'Authorization': `Bearer ${token}` } }
-      );
+      if (selectedFiles.length > 0) {
+        const formData = new FormData();
+        formData.append('content', newMessage);
+        selectedFiles.forEach(file => {
+            formData.append('files', file);
+        });
+
+        await axios.post(
+            `${API_URL}/conversations/${selectedChat._id}/messages/media`,
+            formData,
+            { headers: { 
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'multipart/form-data'
+            }}
+        );
+        clearFiles();
+      } else {
+        // ENVIAR SOLO TEXTO (JSON)
+        await axios.post(
+            `${API_URL}/conversations/${selectedChat._id}/messages`,
+            { content: newMessage },
+            { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+      }
+      
       setNewMessage('');
     } catch (error) {
       console.error("Error al enviar mensaje:", error);
-      if (error.response && error.response.status === 403) {
+      
+      // MEJORA: Mostrar el mensaje real del servidor si existe
+      if (error.response && error.response.data && error.response.data.message) {
         onShowInfo(error.response.data.message);
+      } else {
+        onShowInfo("Error al enviar el mensaje. Revisa tu conexión o el tamaño del archivo.");
       }
+    } finally {
+        setIsSending(false);
     }
   };
+
+  // --- FUNCIONES PARA VISOR DE MEDIOS ---
+
+  const handleExpandMedia = (url, type, messageId, senderId) => {
+    setExpandedMedia({ url, type, messageId, senderId });
+    setShowMediaOptions(false);
+  };
+
+  const closeExpandedView = () => {
+    setExpandedMedia(null);
+    setShowMediaOptions(false);
+  };
+
+// --- FUNCIÓN PARA OBTENER ICONO SEGÚN EXTENSIÓN ---
+  const getFileIconUrl = (fileName) => {
+    const ext = fileName.split('.').pop().toLowerCase();
+    const baseUrl = 'https://cdn.jsdelivr.net/gh/vscode-icons/vscode-icons/icons/';
+
+    switch (ext) {
+        case 'doc': case 'docx': 
+            return `${baseUrl}file_type_word.svg`;
+        case 'xls': case 'xlsx': case 'csv': 
+            return `${baseUrl}file_type_excel.svg`;
+        case 'ppt': case 'pptx': 
+            return `${baseUrl}file_type_powerpoint.svg`;
+        case 'pdf': 
+            return `${baseUrl}file_type_pdf.svg`;
+        case 'zip': case 'rar': case '7z': case 'tar': case 'gz':
+            return `${baseUrl}file_type_zip.svg`;
+        case 'txt': 
+            return `${baseUrl}file_type_text.svg`;
+        case 'js': case 'jsx': 
+            return `${baseUrl}file_type_js.svg`;
+        case 'html': 
+            return `${baseUrl}file_type_html.svg`;
+        case 'css': 
+            return `${baseUrl}file_type_css.svg`;
+        default: 
+            return `${baseUrl}default_file.svg`; // Icono genérico para otros
+    }
+  };
+
+// --- FUNCIÓN PARA DESCARGAR DOCUMENTOS FORZOSAMENTE ---
+  const handleDownloadFile = async (url, fileName) => {
+    try {
+      // 1. Pedimos el archivo como "blob" (datos crudos)
+      const response = await fetch(url);
+      const blob = await response.blob();
+      
+      // 2. Creamos un enlace invisible en memoria
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName; // Esto fuerza el nombre y extensión correctos
+      
+      // 3. Hacemos click y limpiamos
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+      
+    } catch (error) {
+      console.error("Error al descargar:", error);
+      onShowInfo("No se pudo descargar el archivo.");
+    }
+  };
+
+  const handleDownloadMedia = async () => {
+      if (!expandedMedia) return;
+      try {
+          const response = await fetch(expandedMedia.url);
+          const blob = await response.blob();
+          const blobUrl = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          const ext = expandedMedia.type === 'video' ? 'mp4' : 'jpg';
+          link.download = `nexo_media_${Date.now()}.${ext}`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(blobUrl);
+          setShowMediaOptions(false);
+      } catch (error) {
+          console.error("Error al descargar", error);
+          onShowInfo("No se pudo descargar el archivo.");
+      }
+  };
+
+  // --- LÓGICA DE BORRADO MASIVO (NUEVO) ---
+
+  const toggleDeleteMode = () => {
+      setIsDeleteMode(true);
+      setSelectedMsgIds([]);
+      setShowGroupSettingsModal(false); // Cerrar modal de ajustes
+  };
+
+  const cancelDeleteMode = () => {
+      setIsDeleteMode(false);
+      setSelectedMsgIds([]);
+  };
+
+  const handleSelectMessage = (msgId) => {
+      setSelectedMsgIds(prev => {
+          if (prev.includes(msgId)) {
+              return prev.filter(id => id !== msgId);
+          } else {
+              return [...prev, msgId];
+          }
+      });
+  };
+
+// --- PEGAR ESTO DENTRO DE Chat.js (Antes del return) ---
+
+  // 1. Función para abrir el modal al dar click en el botón rojo
+  const handleBulkDeleteClick = () => {
+      if (selectedMsgIds.length === 0) return;
+      setShowBulkDeleteConfirm(true); 
+  };
+
+  // 2. Función que ejecuta el borrado real (conectada al botón "Sí" del modal)
+  const performBulkDelete = async () => {
+      try {
+          await axios.post(
+              `${API_URL}/messages/bulk-delete`,
+              { messageIds: selectedMsgIds },
+              { headers: { 'Authorization': `Bearer ${token}` } }
+          );
+          // Limpieza de estados
+          setIsDeleteMode(false);
+          setSelectedMsgIds([]);
+          setShowBulkDeleteConfirm(false); 
+      } catch (error) {
+          console.error("Error bulk delete", error);
+          onShowInfo("Error al eliminar mensajes.");
+          setShowBulkDeleteConfirm(false);
+      }
+  };
+
+  // Borrado individual desde el visor
+  const handleDeleteMessageFromViewer = async () => {
+      if (!expandedMedia) return;
+      try {
+          await axios.delete(
+              `${API_URL}/messages/${expandedMedia.messageId}`,
+              { headers: { 'Authorization': `Bearer ${token}` } }
+          );
+          closeExpandedView();
+      } catch (error) {
+          onShowInfo(error.response?.data?.message || "Error al borrar.");
+      }
+  };
+
+  // ------------------------------------------------
 
   const handleSearch = async (e) => {
     const query = e.target.value;
@@ -494,6 +810,29 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
     }
   };
   
+{/* --- MODAL CONFIRMACIÓN BORRADO MASIVO --- */}
+      {showBulkDeleteConfirm && (
+        <div className="modal-overlay priority-modal">
+          <div className="modal-content delete-conv">
+            <h2>Eliminar Mensajes</h2>
+            <p>
+              ¿Estás seguro de que quieres eliminar <strong>{selectedMsgIds.length}</strong> mensajes seleccionados?
+            </p>
+            <p style={{fontSize: '0.85em', color: '#666', marginTop: '5px'}}>
+               Se mostrará como "mensaje eliminado" para los demás.
+            </p>
+            <div className="modal-buttons">
+              <button className="confirm-delete" onClick={performBulkDelete}>
+                  Sí, eliminar
+              </button>
+              <button className="cancel-delete" onClick={() => setShowBulkDeleteConfirm(false)}>
+                  Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
   const confirmDeleteOrLeave = async () => {
     if (!deletingConv) return;
     try {
@@ -817,9 +1156,76 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
       ) 
     : [];
 
+  // --- HELPER PARA RENDERIZAR TEXTO EN NEGRITAS ---
+  const renderMessageContent = (text) => {
+    if (!text) return null;
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, index) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+            return <b key={index}>{part.slice(2, -2)}</b>;
+        }
+        return part;
+    });
+  };
+
+  const formatTime = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatDate = (dateString) => {
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    return new Date(dateString).toLocaleDateString('es-ES', options);
+  };
+
+  const shouldShowDateSeparator = (currentMsg, prevMsg) => {
+    if (!prevMsg) return true;
+    const currentDate = new Date(currentMsg.createdAt).toDateString();
+    const prevDate = new Date(prevMsg.createdAt).toDateString();
+    return currentDate !== prevDate;
+  };
+
   return (
     <div className={`chat-container ${selectedChat ? 'chat-active' : ''}`}>
       
+      {/* --- VISOR DE IMÁGENES EXPANDIDO (LIGHTBOX) --- */}
+      {expandedMedia && (
+        <div className="lightbox-overlay" onClick={closeExpandedView}>
+           <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
+               {expandedMedia.type === 'video' ? (
+                   <video src={expandedMedia.url} controls autoPlay className="lightbox-media" />
+               ) : (
+                   <img src={expandedMedia.url} alt="Full screen" className="lightbox-media" />
+               )}
+
+               <button className="lightbox-close" onClick={closeExpandedView}>×</button>
+
+               {/* Menú de opciones de 3 puntitos */}
+               <div className="lightbox-menu-container">
+                   <button 
+                     className="lightbox-menu-btn" 
+                     onClick={() => setShowMediaOptions(!showMediaOptions)}
+                   >
+                     ⋮
+                   </button>
+                   {showMediaOptions && (
+                       <div className="lightbox-menu-dropdown">
+                           <button onClick={handleDownloadMedia}>
+                               💾 Guardar
+                           </button>
+                           {/* Solo mostrar "Eliminar" si yo soy el dueño */}
+                           {expandedMedia.senderId === userId && (
+                               <button onClick={handleDeleteMessageFromViewer} className="delete-option">
+                                   🗑️ Eliminar mensaje
+                               </button>
+                           )}
+                       </div>
+                   )}
+               </div>
+           </div>
+        </div>
+      )}
+
       {/* MODAL DE BÚSQUEDA DE USUARIOS */}
       {showSearchModal && (
         <div className="modal-overlay top-priority-modal">
@@ -918,15 +1324,23 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
         </div>
       )}
       
-      {blockingUser && (
+      {showBulkDeleteConfirm && (
         <div className="modal-overlay priority-modal">
           <div className="modal-content delete-conv">
-            <h2>Bloquear Usuario</h2>
-            <p>¿Seguro que quieres bloquear a <strong>{blockingUser.username}</strong>?</p>
-            <p>No podrás recibir mensajes de este usuario hasta que lo desbloquees manualmente.</p>
+            <h2>Eliminar Mensajes</h2>
+            <p>
+              ¿Estás seguro de que quieres eliminar <strong>{selectedMsgIds.length}</strong> mensajes seleccionados?
+            </p>
+            <p style={{fontSize: '0.85em', color: '#666', marginTop: '5px'}}>
+               Se mostrará como "mensaje eliminado" para los demás.
+            </p>
             <div className="modal-buttons">
-              <button className="confirm-delete" onClick={handleConfirmBlock}>Sí, bloquear</button>
-              <button className="cancel-delete" onClick={() => setBlockingUser(null)}>No, cancelar</button>
+              <button className="confirm-delete" onClick={performBulkDelete}>
+                  Sí, eliminar
+              </button>
+              <button className="cancel-delete" onClick={() => setShowBulkDeleteConfirm(false)}>
+                  Cancelar
+              </button>
             </div>
           </div>
         </div>
@@ -1004,35 +1418,74 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
         </div>
       )}
 
+      {/* --- MODAL CREAR GRUPO (REDISEÑADO) --- */}
       {showCreateGroupModal && (
         <div className="modal-overlay priority-modal">
-          <div className="modal-content create-group">
+          {/* Usamos el mismo estilo de contenedor que Búsqueda */}
+          <div className="modal-content" style={{maxHeight: '80vh', display: 'flex', flexDirection: 'column'}}>
             <h2>Crear un nuevo grupo</h2>
-            <input 
-              type="text"
-              placeholder="Nombre del grupo..."
-              className="group-name-input"
-              value={newGroupName}
-              onChange={(e) => setNewGroupName(e.target.value)}
-            />
-            <h3>Invitar amigos:</h3>
-            <ul className="friend-list">
-              {friendsList.length > 0 ? friendsList.map(friend => (
-                <li key={friend._id}>
-                  <label>
-                    <input 
-                      type="checkbox"
-                      checked={newGroupMembers.includes(friend._id)}
-                      onChange={() => handleMemberToggle(friend._id)}
+            
+            {/* Input con estilo de búsqueda (search-area) */}
+            <div className="search-area" style={{border: 'none', padding: '0 0 10px 0'}}>
+              <input 
+                type="text"
+                placeholder="Nombre del grupo..."
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                autoFocus
+              />
+            </div>
+
+            <h3 style={{alignSelf: 'flex-start', margin: '10px 0 5px 0', fontSize: '0.9rem', color: 'var(--text-secondary)'}}>
+                Selecciona participantes:
+            </h3>
+
+            {/* Lista reutilizando estilos de resultados de búsqueda */}
+            <ul className="search-results">
+              {friendsList.length > 0 ? friendsList.map(friend => {
+                const isSelected = newGroupMembers.includes(friend._id);
+                return (
+                  <li 
+                    key={friend._id} 
+                    className="search-result-item"
+                    // Al hacer click en cualquier parte de la fila, se selecciona
+                    onClick={() => handleMemberToggle(friend._id)}
+                    style={{
+                        cursor: 'pointer', 
+                        backgroundColor: isSelected ? 'var(--bg-selected)' : 'transparent',
+                        borderLeft: isSelected ? '4px solid var(--accent-primary)' : '4px solid transparent'
+                    }}
+                  >
+                    <img 
+                      src={friend.profilePictureUrl || DEFAULT_PROFILE_PIC} 
+                      alt={friend.username} 
+                      className="search-avatar"
                     />
-                    {friend.username}
-                  </label>
-                </li>
-              )) : (
-                <p>No tienes amigos para invitar.</p>
+                    
+                    <div className="search-info">
+                      <span className="search-username">{friend.username}</span>
+                      <span className="search-bio" style={{fontSize: '0.8rem'}}>
+                        {friend.bio ? (friend.bio.length > 30 ? friend.bio.substring(0, 30) + '...' : friend.bio) : "Sin presentación"}
+                      </span>
+                    </div>
+
+                    {/* Checkbox visual a la derecha */}
+                    <div style={{ pointerEvents: 'none' }}>
+                        <input 
+                          type="checkbox"
+                          checked={isSelected}
+                          readOnly
+                          style={{width: '20px', height: '20px', cursor: 'pointer'}}
+                        />
+                    </div>
+                  </li>
+                );
+              }) : (
+                <li className="no-results">No tienes amigos para invitar.</li>
               )}
             </ul>
-            <div className="modal-buttons">
+            
+            <div className="modal-buttons" style={{marginTop: '15px'}}>
               <button className="confirm-logout" onClick={handleCreateGroup}>Crear Grupo</button>
               <button className="cancel-delete" onClick={() => setShowCreateGroupModal(false)}>Cancelar</button>
             </div>
@@ -1040,11 +1493,16 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
         </div>
       )}
 
+{/* --- MODAL MIEMBROS DEL GRUPO (ALINEACIÓN CORREGIDA A LA IZQUIERDA) --- */}
       {showMembersModal && selectedChat && (
         <div className="modal-overlay priority-modal">
-          <div className="modal-content info">
-            <h2>Miembros de {selectedChat.groupName}</h2>
-            <ul className="members-list">
+          <div className="modal-content" style={{maxHeight: '85vh', width: '95%', maxWidth: '600px', display: 'flex', flexDirection: 'column'}}>
+            
+            <h2 style={{borderBottom: '1px solid var(--border-color)', paddingBottom: '10px', marginBottom: '10px'}}>
+                {selectedChat.groupName} <span style={{fontSize: '0.6em', color: 'var(--text-secondary)'}}>({selectedChat.participants.length} miembros)</span>
+            </h2>
+            
+            <ul className="search-results" style={{flex: 1, overflowY: 'auto', marginBottom: '10px'}}>
               {selectedChat.participants.map(member => {
                 const isOnline = onlineUsersMap.hasOwnProperty(member._id);
                 const avatarUrl = member.profilePictureUrl || DEFAULT_PROFILE_PIC;
@@ -1053,126 +1511,124 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                 const isMe = member._id === userId;
 
                 return (
-                  <li key={member._id}>
-                    <div style={{display: 'flex', alignItems: 'center', flex: 1}}>
-                        <img 
-                            src={avatarUrl} 
-                            alt={member.username} 
-                            className={`avatar-in-list ${isOnline ? 'online' : 'offline'}`} 
-                            style={{cursor: 'pointer'}}
-                            onClick={() => setViewingMember(member)} 
-                        />
-                        <span 
-                            className="conv-name"
-                            style={{cursor: 'pointer', textDecoration: 'underline'}}
-                            onClick={() => setViewingMember(member)} 
-                        >
-                            {member.username}
-                        </span>
-                        
-                        {isThisMemberFounder ? (
-                             <span className="admin-tag" style={{color: 'gold'}}> (Fundador)</span>
-                        ) : isThisMemberAdmin ? (
-                             <span className="admin-tag"> (Admin)</span>
-                        ) : null}
-                    </div>
+                  <li key={member._id} className="search-result-item" style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
                     
-                    {!isMe && (
-                      <>
-                        {isCurrentUserAdmin && !isThisMemberAdmin && !isThisMemberFounder && (
-                            <>
-                                <button 
-                                    className="make-admin-btn"
-                                    onClick={() => handlePromoteToAdmin(member._id, member.username)}
-                                    title="Hacer administrador"
-                                >
-                                    ⬆️
-                                </button>
-                                <button 
-                                    className="kick-btn"
-                                    onClick={() => handleKickMember(member._id, member.username)}
-                                    title="Expulsar miembro"
-                                >
-                                    🚫
-                                </button>
-                            </>
-                        )}
+                    {/* IZQUIERDA: Avatar + Info */}
+                    <div style={{display: 'flex', alignItems: 'center', flex: 1, minWidth: 0, marginRight: '10px'}}>
+                        
+                        <div style={{position: 'relative', marginRight: '15px', flexShrink: 0}}>
+                            <img 
+                                src={avatarUrl} 
+                                alt={member.username} 
+                                className="search-avatar"
+                                style={{cursor: 'pointer', border: isOnline ? '2px solid var(--online-color)' : '2px solid transparent'}}
+                                onClick={() => setViewingMember(member)} 
+                            />
+                        </div>
+                        
+                        {/* AQUÍ ESTÁ LA CORRECCIÓN: textAlign: 'left' */}
+                        <div 
+                            className="search-info" 
+                            style={{
+                                cursor: 'pointer', 
+                                overflow: 'hidden', 
+                                textAlign: 'left',       
+                                alignItems: 'flex-start' 
+                            }} 
+                            onClick={() => setViewingMember(member)}
+                        >
+                          <span className="search-username" style={{whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block'}}>
+                            {member.username} {isMe && <span style={{fontSize: '0.8em', color: 'var(--text-secondary)'}}>(Tú)</span>}
+                          </span>
+                          
+                          <div style={{display: 'flex', gap: '5px', marginTop: '3px', flexWrap: 'wrap'}}>
+                              {isThisMemberFounder && (
+                                  <span style={{fontSize: '0.7rem', backgroundColor: '#ffd700', color: '#333', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold', whiteSpace: 'nowrap'}}>
+                                    👑 Fundador
+                                  </span>
+                              )}
+                              {isThisMemberAdmin && !isThisMemberFounder && (
+                                  <span style={{fontSize: '0.7rem', backgroundColor: 'var(--accent-primary)', color: 'white', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold', whiteSpace: 'nowrap'}}>
+                                    🛡️ Admin
+                                  </span>
+                              )}
+                              {!isThisMemberAdmin && !isThisMemberFounder && (
+                                 <span className="search-bio" style={{margin: 0}}>Miembro</span>
+                              )}
+                          </div>
+                        </div>
+                    </div>
 
-                        {isCurrentUserFounder && isThisMemberAdmin && !isThisMemberFounder && (
-                            <>
-                                <button 
-                                    className="demote-admin-btn"
-                                    onClick={() => handleDemoteAdmin(member._id, member.username)}
-                                    title="Quitar administrador"
-                                >
-                                    ⬇️
-                                </button>
-                                <button 
-                                    className="kick-btn"
-                                    onClick={() => handleKickMember(member._id, member.username)}
-                                    title="Expulsar admin"
-                                >
-                                    🚫
-                                </button>
-                            </>
+                    {/* DERECHA: Botones */}
+                    {!isMe && (
+                      <div style={{display: 'flex', gap: '5px', flexShrink: 0}}>
+                        {isCurrentUserAdmin && !isThisMemberAdmin && !isThisMemberFounder && (
+                            <button className="make-admin-btn" onClick={() => handlePromoteToAdmin(member._id, member.username)} title="Hacer administrador" style={{marginLeft: 0}}>⬆️</button>
                         )}
-                      </>
+                        {isCurrentUserFounder && isThisMemberAdmin && !isThisMemberFounder && (
+                            <button className="demote-admin-btn" onClick={() => handleDemoteAdmin(member._id, member.username)} title="Quitar administrador" style={{marginLeft: 0, marginRight: 0}}>⬇️</button>
+                        )}
+                        {((isCurrentUserAdmin && !isThisMemberAdmin) || (isCurrentUserFounder)) && (
+                            <button className="kick-btn" onClick={() => handleKickMember(member._id, member.username)} title="Expulsar miembro" style={{marginLeft: 0}}>🚫</button>
+                        )}
+                      </div>
                     )}
                   </li>
                 );
               })}
             </ul>
             
+            {/* SECCIÓN AÑADIR (Solo Admins) */}
             {isCurrentUserAdmin && (
-              <div className="add-members-section">
-                <h3 onClick={() => setIsInviteSectionOpen(!isInviteSectionOpen)}>
-                  Añadir Miembros
+              <div className="add-members-section" style={{borderTop: '1px solid var(--border-color)', paddingTop: '10px'}}>
+                <h3 
+                    onClick={() => setIsInviteSectionOpen(!isInviteSectionOpen)}
+                    style={{fontSize: '0.95rem', display: 'flex', justifyContent: 'space-between', cursor: 'pointer', padding: '5px', backgroundColor: 'var(--bg-secondary)', borderRadius: '5px', textAlign: 'left'}}
+                >
+                  Añadir nuevos miembros
                   <span className="toggle-arrow">{isInviteSectionOpen ? '▲' : '▼'}</span>
                 </h3>
+
                 {isInviteSectionOpen && (
-                  <>
-                    <ul className="friend-list invite">
-                      {friendsToInvite.map(friend => (
-                        <li key={friend._id}>
-                          <label>
-                            <input 
-                              type="checkbox"
-                              checked={inviteMembers.includes(friend._id)}
-                              onChange={() => handleInviteToggle(friend._id)}
-                            />
-                            {friend.username}
-                          </label>
-                        </li>
-                      ))}
+                  <div style={{marginTop: '10px'}}>
+                    <ul className="search-results" style={{maxHeight: '150px', overflowY: 'auto'}}>
+                      {friendsToInvite.length > 0 ? friendsToInvite.map(friend => {
+                          const isSelected = inviteMembers.includes(friend._id);
+                          return (
+                            <li key={friend._id} className="search-result-item" onClick={() => handleInviteToggle(friend._id)} style={{cursor: 'pointer', padding: '8px', backgroundColor: isSelected ? 'var(--bg-selected)' : 'transparent', borderLeft: isSelected ? '3px solid var(--accent-primary)' : '3px solid transparent', display: 'flex', alignItems: 'center'}}>
+                                <img src={friend.profilePictureUrl || DEFAULT_PROFILE_PIC} alt={friend.username} className="search-avatar" style={{width: '35px', height: '35px'}} />
+                                <span className="search-username" style={{fontSize: '0.9rem', textAlign: 'left'}}>{friend.username}</span>
+                                <input type="checkbox" checked={isSelected} readOnly style={{marginLeft: 'auto', pointerEvents: 'none'}} />
+                            </li>
+                          )
+                      }) : (
+                          <li className="no-results" style={{padding: '10px', fontSize: '0.8rem'}}>No tienes amigos disponibles para invitar.</li>
+                      )}
                     </ul>
-                    <button 
-                      className="invite-btn" 
-                      onClick={handleInviteMembers}
-                      disabled={!inviteMembers.length}
-                    >
-                      Añadir ({inviteMembers.length})
-                    </button>
-                  </>
+                    <button className="invite-btn" onClick={handleInviteMembers} disabled={!inviteMembers.length} style={{marginTop: '10px', width: '100%'}}>Invitar seleccionados ({inviteMembers.length})</button>
+                  </div>
                 )}
               </div>
             )}
             
-            <div className="modal-buttons single-button">
-              <button className="confirm-logout" onClick={closeMembersModal}>
-                Cerrar
-              </button>
+            <div className="modal-buttons single-button" style={{marginTop: '15px'}}>
+              <button className="cancel-delete" onClick={closeMembersModal}>Cerrar</button>
             </div>
           </div>
         </div>
       )}
       
+{/* --- MODAL AJUSTES (LIMPIO) --- */}
       {showGroupSettingsModal && selectedChat && (
         <div className="modal-overlay priority-modal">
           <div className="modal-content profile-modal group-settings-modal"> 
+            
+            {/* 1. TÍTULO ACTUALIZADO */}
             <h2>
-                {selectedChat.isGroup ? 'Ajustes del Grupo' : 'Perfil y Ajustes'}
+                {selectedChat.isGroup ? 'Ajustes del Grupo' : 'Ajustes'}
             </h2>
             
+            {/* 2. CONTENIDO SUPERIOR (Solo para grupos porque es editable) */}
             {selectedChat.isGroup ? (
               <>
                 {canEditGroup ? (
@@ -1200,6 +1656,7 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                         value={tempGroupName}
                         onChange={(e) => setTempGroupName(e.target.value)}
                         className="username-input"
+                        placeholder="Nombre del grupo"
                       />
                   </>
                 ) : (
@@ -1215,20 +1672,23 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                 )}
               </>
             ) : (
-              <>
-                <img 
-                  src={getOtherParticipant(selectedChat.participants)?.profilePictureUrl || DEFAULT_PROFILE_PIC} 
-                  alt="Perfil" 
-                  className="profile-modal-avatar"
-                  style={{cursor: 'default'}}
-                />
-                <h3>{getOtherParticipant(selectedChat.participants)?.username}</h3>
-                <p style={{fontStyle: 'italic', color: '#777', margin: '0 0 20px 0'}}>{getOtherParticipant(selectedChat.participants)?.bio || "Sin presentación."}</p>
-              </>
+              /* --- AQUÍ ESTÁ EL CAMBIO PRINCIPAL --- */
+              /* Si es chat privado, NO mostramos nada de perfil (ni foto, ni nombre, ni bio) */
+              /* Dejamos este espacio vacío o nulo */
+              null
             )}
             
-            <div className="group-settings-buttons">
+            {/* 3. BOTONES DE ACCIÓN (Se mantienen igual) */}
+            <div className="group-settings-buttons" style={{marginTop: selectedChat.isGroup ? '0' : '10px'}}>
               
+              <button 
+                className="delete-btn" 
+                style={{backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)'}}
+                onClick={toggleDeleteMode}
+              >
+                🗑️ Borrar mensajes
+              </button>
+
               {selectedChat.isGroup ? (
                 <>
                   <button className="view-members-btn" onClick={() => {
@@ -1361,7 +1821,10 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                 fontWeight: 'bold',
                 color: 'var(--text-secondary)',
                 fontSize: '0.9rem',
-                letterSpacing: '1px'
+                letterSpacing: '1px',
+                position: 'sticky',
+                top: 0,
+                zIndex: 5
              }}
           >
              <span>GRUPOS</span>
@@ -1407,7 +1870,10 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                 fontWeight: 'bold',
                 color: 'var(--text-secondary)',
                 fontSize: '0.9rem',
-                letterSpacing: '1px'
+                letterSpacing: '1px',
+                position: 'sticky',
+                top: 0,
+                zIndex: 5
              }}
           >
              <span>CONVERSACIONES</span>
@@ -1456,45 +1922,184 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
         <div className="chat-window">
           {selectedChat ? (
             <>
-              <div className="chat-window-header">
+<div className="chat-window-header">
                 {/* --- BOTÓN ATRÁS (MÓVIL) --- */}
                 <button className="back-button" onClick={() => setSelectedChat(null)}>⬅</button>
 
-                <h4>
-                  {selectedChat.isGroup 
-                    ? selectedChat.groupName 
-                    : getOtherParticipant(selectedChat.participants)?.username || 'Usuario'}
-                </h4>
-                {selectedChat.status === 'active' && (
-                  <div className="chat-header-options">
-                    <button 
-                      className="group-settings-btn"
-                      onClick={() => setShowGroupSettingsModal(true)}
-                    >
-                      {selectedChat.isGroup ? 'Ajustes ⚙️' : 'Perfil ⚙️'}
-                    </button>
-                  </div>
+                {/* --- 1. ÁREA CLICABLE: FOTO + NOMBRE (SOLO EN CHATS PRIVADOS) --- */}
+                <div 
+                  style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      flex: 1,
+                      // CAMBIO: Solo mostramos 'mano' si NO es grupo
+                      cursor: selectedChat.isGroup ? 'default' : 'pointer' 
+                  }}
+                  onClick={() => {
+                    // CAMBIO: Solo abrimos perfil si es chat privado
+                    if (!selectedChat.isGroup) {
+                        const userToView = getOtherParticipant(selectedChat.participants);
+                        if (userToView) setViewingMember(userToView);
+                    }
+                  }}
+                  title={selectedChat.isGroup ? '' : "Ver perfil"}
+                >
+                  <img 
+                    src={selectedChat.isGroup 
+                        ? (selectedChat.groupPictureUrl || DEFAULT_GROUP_PIC)
+                        : (getOtherParticipant(selectedChat.participants)?.profilePictureUrl || DEFAULT_PROFILE_PIC)
+                    }
+                    alt="Avatar"
+                    className="user-avatar-small" 
+                    style={{ marginRight: '10px', width: '40px', height: '40px' }} 
+                  />
+                  
+                  <h4 style={{ margin: 0 }}>
+                    {selectedChat.isGroup 
+                      ? selectedChat.groupName 
+                      : getOtherParticipant(selectedChat.participants)?.username || 'Usuario'}
+                  </h4>
+                </div>
+                
+                {/* --- 2. BOTONES DE ACCIÓN (DERECHA) --- */}
+                {isDeleteMode ? (
+                    <div className="chat-header-options delete-mode-options">
+                        <button 
+                            className="confirm-delete-btn"
+                            onClick={handleBulkDeleteClick}
+                            disabled={selectedMsgIds.length === 0}
+                            style={{backgroundColor: 'var(--accent-danger)', color: 'white', border: 'none'}}
+                        >
+                            🗑️ Eliminar ({selectedMsgIds.length})
+                        </button>
+                        <button 
+                            onClick={cancelDeleteMode}
+                            style={{marginLeft: '5px'}}
+                        >
+                            Cancelar
+                        </button>
+                    </div>
+                ) : (
+                    selectedChat.status === 'active' && (
+                      <div className="chat-header-options">
+                        <button 
+                          className="group-settings-btn"
+                          onClick={() => setShowGroupSettingsModal(true)}
+                        >
+                          {/* En grupos mostramos Ajustes, en privado también (pero con menú reducido) */}
+                          Ajustes ⚙️
+                        </button>
+                      </div>
+                    )
                 )}
               </div>
               
               {selectedChat.status === 'active' ? (
                 <>
                   <div className="message-list">
-                    {messages.map((msg, index) => {
-                      
-                      if (msg.type === 'system') {
-                        return (
-                          <div key={msg._id} className="system-message">
-                            <span>{msg.content}</span>
-                          </div>
-                        );
-                      }
+                    {/* --- INICIO DEL REEMPLAZO --- */}
+<div className="message-list">
+                  {messages.map((msg, index) => {
+                    
+                    // --- 1. LÓGICA DE SEPARADOR DE NO LEÍDOS ---
+                    const firstUnreadIndex = messages.length - initialUnreadCount;
+                    const showUnreadSeparator = initialUnreadCount > 0 && index === firstUnreadIndex;
 
-                      const prevMsg = messages[index - 1];
-                      const showAvatar = !prevMsg || prevMsg.type === 'system' || msg.sender._id !== prevMsg.sender._id;
-                      
+                    // --- 2. LÓGICA DE FECHAS ---
+                    const prevMsg = messages[index - 1];
+                    const showDate = shouldShowDateSeparator(msg, prevMsg);
+
+                    // --- 3. DETECTAR SI ESTÁ BORRADO ---
+                    const isDeleted = msg.content && msg.content.includes('ha borrado') && msg.content.startsWith('**');
+                    
+                    // --- 4. RENDERIZAR MENSAJE DE SISTEMA ---
+                    if (msg.type === 'system') {
                       return (
-                        <div key={msg._id} className={`message ${msg.sender._id === userId ? 'sent' : 'received'}`}>
+                        <React.Fragment key={msg._id}>
+                           {showDate && (
+                              <div className="date-separator">
+                                <span>{formatDate(msg.createdAt)}</span>
+                              </div>
+                           )}
+                           {/* Separador de no leídos en mensajes de sistema (raro pero posible) */}
+                           {showUnreadSeparator && (
+                                <div className="unread-separator" ref={unreadMarkerRef}>
+                                    <span>Mensajes nuevos ⬇</span>
+                                </div>
+                            )}
+                           <div className="system-message">
+                             <span>{msg.content}</span>
+                           </div>
+                        </React.Fragment>
+                      );
+                    }
+
+                    // --- 5. RENDERIZAR MENSAJE BORRADO (COMO SISTEMA) ---
+                    if (isDeleted) {
+                        return (
+                            <React.Fragment key={msg._id}>
+                                {showDate && (
+                                    <div className="date-separator">
+                                        <span>{formatDate(msg.createdAt)}</span>
+                                    </div>
+                                )}
+                                {showUnreadSeparator && (
+                                    <div className="unread-separator" ref={unreadMarkerRef}>
+                                        <span>Mensajes nuevos ⬇</span>
+                                    </div>
+                                )}
+                                <div className="system-message deleted-message">
+                                    <span style={{ fontStyle: 'italic', color: 'var(--text-secondary)', backgroundColor: 'transparent', border: 'none' }}>
+                                        🚫 {renderMessageContent(msg.content)}
+                                    </span>
+                                </div>
+                            </React.Fragment>
+                        );
+                    }
+
+                    // --- 6. RENDERIZAR MENSAJE NORMAL ---
+                    const showAvatar = !prevMsg || prevMsg.type === 'system' || msg.sender._id !== prevMsg.sender._id || showDate || showUnreadSeparator;
+                    const isSelected = selectedMsgIds.includes(msg._id);
+
+                    return (
+                      <React.Fragment key={msg._id}>
+                        
+                        {/* A. SEPARADOR DE FECHA */}
+                        {showDate && (
+                          <div className="date-separator">
+                            <span>{formatDate(msg.createdAt)}</span>
+                          </div>
+                        )}
+
+                        {/* B. SEPARADOR DE MENSAJES NUEVOS */}
+                        {showUnreadSeparator && (
+                            <div className="unread-separator" ref={unreadMarkerRef}>
+                                <span>Mensajes nuevos ⬇</span>
+                            </div>
+                        )}
+
+                        {/* C. BURBUJA DE MENSAJE */}
+                        <div 
+                            className={`message ${msg.sender._id === userId ? 'sent' : 'received'} ${isDeleteMode && isSelected ? 'msg-selected' : ''}`}
+                            onClick={() => {
+                                if (isDeleteMode && msg.sender._id === userId && msg.type !== 'system') {
+                                    handleSelectMessage(msg._id);
+                                }
+                            }}
+                            style={isDeleteMode && msg.sender._id === userId ? {cursor: 'pointer', opacity: isSelected ? 1 : 0.7} : {}}
+                        >
+                          {/* Checkbox modo borrado */}
+                          {isDeleteMode && msg.sender._id === userId && (
+                              <div className="msg-checkbox-wrapper">
+                                  <input 
+                                    type="checkbox" 
+                                    checked={isSelected}
+                                    readOnly
+                                    style={{width: '18px', height: '18px', margin: '0 8px'}} 
+                                  />
+                              </div>
+                          )}
+
                           {showAvatar && (
                             <img 
                               src={msg.sender.profilePictureUrl || DEFAULT_PROFILE_PIC}
@@ -1502,26 +2107,181 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
                               className="message-avatar"
                             />
                           )}
+                          
                           <div className={`message-content ${showAvatar ? '' : 'no-avatar'}`}>
-                            {showAvatar && <strong>{msg.sender.username}</strong>}
-                            <p>{msg.content}</p>
+                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px'}}>
+                                {showAvatar && <strong>{msg.sender.username}</strong>}
+                            </div>
+                            
+                            {/* Multimedia y Documentos */}
+                            {msg.mediaUrls && msg.mediaUrls.length > 0 && (
+                                <div className="message-media-grid">
+                                    {msg.mediaUrls.map((url, idx) => {
+                                        // Detectar tipo por extensión
+                                        const ext = url.split('.').pop().toLowerCase();
+                                        const isVideo = ['mp4', 'webm', 'mov', 'mkv'].includes(ext) || msg.type === 'video';
+                                        const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext);
+                                        const isDoc = !isVideo && !isImage;
+
+                                        if (isDoc) {
+                                            // --- TARJETA DE DOCUMENTO CON ICONO REAL ---
+                                            const rawName = decodeURIComponent(url.split('/').pop().split('?')[0]);
+                                            const fileName = rawName.replace(/^\d+_/, '');
+                                            
+                                            // Obtenemos la URL del icono
+                                            const iconUrl = getFileIconUrl(fileName);
+
+                                            return (
+                                                <div key={idx} className="document-card">
+                                                    {/* IMAGEN DEL ICONO */}
+                                                    <img 
+                                                        src={iconUrl} 
+                                                        alt="icon" 
+                                                        className="doc-icon-img" 
+                                                    />
+                                                    
+                                                    <div className="doc-info">
+                                                        <span className="doc-name">{fileName}</span>
+                                                        
+                                                        <button 
+                                                            className="doc-download-btn" 
+                                                            onClick={(e) => {
+                                                                e.stopPropagation(); 
+                                                                handleDownloadFile(url, fileName); 
+                                                            }}
+                                                        >
+                                                            ⬇ Descargar
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+
+                                        return isVideo ? (
+                                            <video 
+                                              key={idx} 
+                                              src={url} 
+                                              className="media-item video" 
+                                              onClick={(e) => {
+                                                  if (isDeleteMode) return;
+                                                  e.stopPropagation();
+                                                  handleExpandMedia(url, 'video', msg._id, msg.sender._id);
+                                              }}
+                                            />
+                                        ) : (
+                                            <img 
+                                              key={idx} 
+                                              src={url} 
+                                              alt="Adjunto" 
+                                              className="media-item image" 
+                                              onClick={(e) => {
+                                                  if (isDeleteMode) return;
+                                                  e.stopPropagation();
+                                                  handleExpandMedia(url, 'image', msg._id, msg.sender._id);
+                                              }}
+                                            />
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* Texto */}
+                            {msg.content && <p>{renderMessageContent(msg.content)}</p>}
+                            
+                            {/* Hora */}
+                            <span className="msg-timestamp">
+                              {formatTime(msg.createdAt)}
+                            </span>
                           </div>
                         </div>
-                      )
-                    })}
-                    <div ref={messagesEndRef} />
+                      </React.Fragment>
+                    )
+                  })}
+                  <div ref={messagesEndRef} />
+                </div>
+            {/* --- FIN DEL REEMPLAZO --- */}
                   </div>
-                  <div className="message-input-area">
+
+                  {/* --- AREA DE VISTA PREVIA --- */}
+                  {previews.length > 0 && (
+                      <div className="file-preview-area">
+                          {previews.map((file, idx) => (
+                              <div key={idx} className="preview-item">
+                                  {file.type === 'video' ? (
+                                      <div className="video-icon-placeholder">▶ Video</div>
+                                  ) : file.type === 'document' ? (
+                                      <div className="video-icon-placeholder" style={{fontSize:'0.7rem', flexDirection:'column'}}>
+                                          <span style={{fontSize:'1.5rem'}}>📄</span>
+                                          <span style={{overflow:'hidden', textOverflow:'ellipsis', maxWidth:'90%', whiteSpace:'nowrap'}}>{file.name}</span>
+                                      </div>
+                                  ) : (
+                                      <img src={file.url} alt="preview" />
+                                  )}
+                                  <button className="remove-preview" onClick={() => {
+                                      const newFiles = [...selectedFiles];
+                                      newFiles.splice(idx, 1);
+                                      setSelectedFiles(newFiles);
+                                      const newPreviews = [...previews];
+                                      newPreviews.splice(idx, 1);
+                                      setPreviews(newPreviews);
+                                      if(newFiles.length === 0) {
+                                          if(fileInputRef.current) fileInputRef.current.value = "";
+                                          if(docInputRef.current) docInputRef.current.value = "";
+                                      }
+                                  }}>×</button>
+                              </div>
+                          ))}
+                      </div>
+                  )}
+
+                    <div className="message-input-area">
+                    {/* INPUTS OCULTOS */}
+                    <input 
+                        type="file" multiple accept="image/*,video/*"
+                        ref={fileInputRef} style={{display: 'none'}}
+                        onChange={(e) => handleFileSelect(e, false)}
+                    />
+                    
+                    {/* INPUT PARA DOCUMENTOS (Con filtro visual para ayudar) */}
+                    <input 
+                        type="file" multiple 
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar,.7z,.csv"
+                        ref={docInputRef} style={{display: 'none'}}
+                        onChange={(e) => handleFileSelect(e, true)}
+                    />
+                    
+                    {/* BOTÓN DOCUMENTOS (CLIP) */}
+                    <button 
+                        className="attach-btn"
+                        onClick={() => docInputRef.current.click()}
+                        disabled={isChatBlocked || isSending}
+                        title="Enviar documentos"
+                    >
+                        📎
+                    </button>
+
+                    {/* BOTÓN CÁMARA (Solo uno) */}
+                    <button 
+                        className="camera-btn"
+                        onClick={() => fileInputRef.current.click()}
+                        disabled={isChatBlocked || isSending}
+                        title="Enviar fotos o videos"
+                    >
+                        📷
+                    </button>
+
                     <input 
                       type="text" 
-                      placeholder={isChatBlocked ? "No puedes escribir en este chat." : "Escribe un mensaje..."}
+                      placeholder={isChatBlocked ? "No puedes escribir..." : "Escribe un mensaje..."}
                       value={newMessage}
-                      disabled={isChatBlocked}
+                      disabled={isChatBlocked || isSending}
                       onChange={(e) => setNewMessage(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                       style={isChatBlocked ? {backgroundColor: '#f0f0f0', cursor: 'not-allowed'} : {}}
                     />
-                    <button onClick={handleSendMessage} disabled={isChatBlocked}>Enviar</button>
+                    <button onClick={handleSendMessage} disabled={isChatBlocked || isSending}>
+                        {isSending ? '...' : 'Enviar'}
+                    </button>
                   </div>
                 </>
               ) : (

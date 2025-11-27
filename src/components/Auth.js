@@ -12,7 +12,15 @@ function Auth({ onLoginSuccess, onRegisterSuccess, theme, toggleTheme, userCount
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleRegister = async () => {
+const handleRegister = async () => {
+    // Validar contraseña antes de enviar (Para no esperar al servidor)
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
+    
+    if (!passwordRegex.test(password)) {
+       onShowInfo("La contraseña debe tener: Mínimo 8 caracteres, 1 Mayúscula, 1 Minúscula, 1 Número y 1 Símbolo.");
+       return;
+    }
+
     try {
       const response = await axios.post(`${API_URL}/register`, {
         username: username,
@@ -113,6 +121,20 @@ function Auth({ onLoginSuccess, onRegisterSuccess, theme, toggleTheme, userCount
               {isPasswordVisible ? 'Ocultar' : 'Mostrar'}
             </button>
           </div>
+
+          {/* --- NUEVO: REQUISITOS DE CONTRASEÑA (SOLO EN REGISTRO) --- */}
+          {activeTab === 'register' && (
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '15px', textAlign: 'left', padding: '0 5px' }}>
+                <p style={{margin: '0 0 5px 0', fontWeight: 'bold'}}>La contraseña debe incluir:</p>
+                <ul style={{margin: 0, paddingLeft: '20px', listStyleType: 'disc'}}>
+                    <li style={{color: /(?=.*[A-Z])/.test(password) ? 'var(--accent-safe)' : 'inherit'}}>1 Mayúscula</li>
+                    <li style={{color: /(?=.*[a-z])/.test(password) ? 'var(--accent-safe)' : 'inherit'}}>1 Minúscula</li>
+                    <li style={{color: /(?=.*\d)/.test(password) ? 'var(--accent-safe)' : 'inherit'}}>1 Número</li>
+                    <li style={{color: /(?=.*[\W_])/.test(password) ? 'var(--accent-safe)' : 'inherit'}}>1 Caracter especial (ej. !@#$)</li>
+                    <li style={{color: password.length >= 8 ? 'var(--accent-safe)' : 'inherit'}}>Mínimo 8 caracteres</li>
+                </ul>
+            </div>
+          )}
 
           <div className="auth-buttons">
             {activeTab === 'login' ? (
