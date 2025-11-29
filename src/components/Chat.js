@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import ProfileUploader from './ProfileUploader'; 
+import ProfileUploader from './ProfileUploader';
+import Picker from '@emoji-mart/react';
+import i18n from '@emoji-mart/data/i18n/es.json';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 const DEFAULT_PROFILE_PIC = 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png';
@@ -80,10 +82,18 @@ function Chat({ token, userId, username, socket, onShowRequestSent, onShowInfo, 
 
   const messagesEndRef = useRef(null);
 
-  // --- EFECTOS (USE EFFECT) ---
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // --- NUEVO ESTADO PARA EMOJIS ---
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  // --- FUNCIÓN PARA AGREGAR EMOJI AL INPUT ---
+  const onEmojiClick = (emojiObject) => {
+    // En Emoji Mart, el emoji viene en emojiObject.native
+    setNewMessage(prev => prev + emojiObject.native);
   };
 
 // --- SCROLL INTELIGENTE ---
@@ -2234,15 +2244,13 @@ const handleFileSelect = (e, isDoc = false) => {
                       </div>
                   )}
 
-                    <div className="message-input-area">
-                    {/* INPUTS OCULTOS */}
+<div className="message-input-area">
+                    {/* INPUTS OCULTOS (SIN CAMBIOS) */}
                     <input 
                         type="file" multiple accept="image/*,video/*"
                         ref={fileInputRef} style={{display: 'none'}}
                         onChange={(e) => handleFileSelect(e, false)}
                     />
-                    
-                    {/* INPUT PARA DOCUMENTOS (Con filtro visual para ayudar) */}
                     <input 
                         type="file" multiple 
                         accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar,.7z,.csv"
@@ -2250,7 +2258,7 @@ const handleFileSelect = (e, isDoc = false) => {
                         onChange={(e) => handleFileSelect(e, true)}
                     />
                     
-                    {/* BOTÓN DOCUMENTOS (CLIP) */}
+                    {/* BOTONES ADJUNTOS (SIN CAMBIOS) */}
                     <button 
                         className="attach-btn"
                         onClick={() => docInputRef.current.click()}
@@ -2260,7 +2268,6 @@ const handleFileSelect = (e, isDoc = false) => {
                         📎
                     </button>
 
-                    {/* BOTÓN CÁMARA (Solo uno) */}
                     <button 
                         className="camera-btn"
                         onClick={() => fileInputRef.current.click()}
@@ -2278,7 +2285,38 @@ const handleFileSelect = (e, isDoc = false) => {
                       onChange={(e) => setNewMessage(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                       style={isChatBlocked ? {backgroundColor: '#f0f0f0', cursor: 'not-allowed'} : {}}
+                      // Para cerrar el picker si escriben texto
+                      onFocus={() => setShowEmojiPicker(false)} 
                     />
+
+                    {/* --- NUEVO: CONTENEDOR DE EMOJIS --- */}
+                    <div className="emoji-wrapper">
+                        <button 
+                            className="emoji-btn"
+                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                            disabled={isChatBlocked || isSending}
+                        >
+                            😊
+                        </button>
+                        
+                        {/* El panel de emojis se muestra si showEmojiPicker es true */}
+                        {showEmojiPicker && (
+                            <div className="emoji-picker-container">
+                                <Picker 
+                                    locale="es"
+                                    i18n={i18n}
+                                    onEmojiSelect={onEmojiClick}
+                                    theme="auto"
+                                    
+                                    /* --- CAMBIOS AQUÍ --- */
+                                    previewPosition="none"  /* Oculta la barra inferior de "Mood" */
+                                    searchPosition="none"   /* <--- ESTO OCULTA LA BARRA DE BÚSQUEDA */
+                                    skinTonePosition="none" /* (Opcional) Oculta selector de piel */
+                                />
+                            </div>
+                        )}
+                    </div>
+
                     <button onClick={handleSendMessage} disabled={isChatBlocked || isSending}>
                         {isSending ? '...' : 'Enviar'}
                     </button>

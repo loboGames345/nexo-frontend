@@ -1418,83 +1418,125 @@
    9. RESPONSIVE DESIGN (MÓVIL)
    ========================================= */
 
+/* =========================================
+   9. RESPONSIVE DESIGN (MÓVIL MEJORADO)
+   ========================================= */
+
 @media (max-width: 768px) {
+
+  /* 1. Ajuste del Contenedor Principal (App) */
   .App {
-    padding: 0; /* Quitar padding del body en móvil para aprovechar espacio */
-  }
-  
-  .chat-layout {
-    height: calc(100vh - 60px); /* Altura completa menos header */
-    border-radius: 0;
-    border: none;
+    padding: 0; /* Quitamos el padding para usar toda la pantalla */
+    height: 100vh; /* Altura completa */
+    height: 100dvh; /* Altura dinámica (mejor para celulares modernos con barra URL) */
+    overflow: hidden; /* Evita scroll doble */
+    display: flex;
     flex-direction: column;
   }
+  
+  .app-slogan, .App h1 {
+    display: none; /* Opcional: Ocultar título gigante en móvil para ganar espacio */
+  }
 
+  /* 2. Ajuste del Layout del Chat */
+  .chat-layout {
+    flex: 1; /* Ocupar todo el espacio restante */
+    height: auto; /* Dejar que flex maneje la altura */
+    border: none;
+    border-radius: 0;
+    width: 100vw; /* Ancho completo */
+  }
+
+  /* 3. LÓGICA DE INTERCAMBIO (LISTA vs CHAT) */
+  
+  /* ESTADO A: NO hay chat seleccionado (Vemos la lista) */
+  .chat-layout .conversations-list {
+    display: flex; /* Mostramos la lista */
+    width: 100%;
+    border-right: none;
+  }
+  .chat-layout .chat-window {
+    display: none; /* Ocultamos el chat */
+  }
+
+  /* ESTADO B: SÍ hay chat seleccionado (Clase .chat-active agregada en Chat.js) */
+  .chat-layout.chat-active .conversations-list {
+    display: none; /* Ocultamos la lista */
+  }
+  .chat-layout.chat-active .chat-window {
+    display: flex; /* Mostramos el chat */
+    width: 100%;
+  }
+
+  /* 4. Ajustes de Cabecera de Usuario (Donde sale tu foto y 'Cerrar sesión') */
   .user-controls {
-      border-radius: 0;
-      border-left: none; border-right: none;
-      margin-bottom: 0;
+    border-radius: 0;
+    margin-bottom: 0;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    padding: 8px 12px;
   }
 
-  /* Ocultar lista si hay chat seleccionado */
-  .chat-layout.mobile-chat-active .conversations-list {
-    display: none;
+  /* 5. Ajustes de Modals para que no se salgan de la pantalla */
+  .modal-content {
+    width: 95% !important; /* Casi todo el ancho */
+    max-height: 85vh; /* Evitar que sea más alto que la pantalla */
+    overflow-y: auto; /* Scroll dentro del modal si es muy largo */
+    padding: 15px;
+  }
+  
+  /* 6. Ajustes de Inputs para evitar Zoom en iPhone */
+  input[type="text"], 
+  input[type="password"], 
+  textarea {
+    font-size: 16px !important; /* iOS hace zoom si la letra es menor a 16px */
   }
 
-  /* Mostrar ventana si hay chat seleccionado */
-  .chat-layout.mobile-chat-active .chat-window {
-    display: flex;
+  /* 7. Ajuste del área de escribir mensaje */
+  .message-input-area {
+    padding: 8px;
+    padding-bottom: 15px; /* Un poco más de espacio abajo para gestos táctiles */
+  }
+  
+  /* 8. Botón de "Atrás" visible */
+  .back-button {
+    display: block;
+    margin-right: 15px;
+    padding: 10px; /* Área de toque más grande */
+  }
+
+  /* 9. Ajustes visuales de la lista de chats */
+  .conversations-list li {
+    padding: 15px; /* Más espacio para dedos gordos */
+  }
+  
+  /* 10. Lightbox (Visor de fotos) ajustado */
+  .lightbox-content {
     width: 100%;
     height: 100%;
   }
-
-  /* Ocultar ventana si NO hay chat seleccionado */
-  .chat-window {
-    display: none; 
+  .lightbox-media {
+    max-width: 100%;
+    max-height: 80vh; /* Dejar espacio para botones */
   }
-
-  /* Mostrar lista si NO hay chat seleccionado */
-  .conversations-list {
-    width: 100%;
-    display: flex;
-    border-right: none;
-  }
-
-  /* Mostrar botón atrás solo en móvil cuando chat está activo */
-  .back-button {
-    display: block;
-  }
-
-  /* Ajustes generales para dedos */
-  .message-input-area button {
-      padding: 0 15px;
+  .lightbox-close {
+    top: 20px;
+    right: 20px;
+    background: rgba(0,0,0,0.5); /* Fondo para que se vea */
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
   }
   
-  .modal-content {
-      width: 95%;
-      padding: 15px;
-  }
-  
-  /* Ajustar header de usuario */
-  .user-avatar-small {
-      width: 35px; height: 35px; margin-right: 8px;
-  }
-  .user-controls span {
-      font-size: 0.9rem;
-  }
-  .options-button {
-      padding: 6px 10px;
-      font-size: 0.8rem;
-  }
-  
-  /* Notificaciones en móvil */
+  /* 11. Panel de Notificaciones en móvil */
   .notification-panel {
-      position: fixed;
-      top: 60px;
-      left: 10px;
-      right: 10px;
-      width: auto;
-      z-index: 2000;
+    position: fixed; /* Fijo en pantalla */
+    top: 60px;
+    left: 10px;
+    right: 10px;
+    width: auto; /* Auto ancho */
+    max-height: 60vh;
   }
 }
 
@@ -1907,4 +1949,92 @@
 
 .doc-download-btn:active {
   transform: translateY(1px); /* Efecto de clic */
+}
+
+/* --- ESTILOS PARA EMOJIS --- */
+
+.emoji-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-right: 10px; /* Separación con el botón enviar */
+}
+
+.emoji-btn {
+  background: transparent !important; /* Transparente para que se vea limpio */
+  border: none !important;
+  font-size: 1.5rem !important;
+  cursor: pointer;
+  padding: 0 5px !important;
+  margin: 0 !important;
+  transition: transform 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.emoji-btn:hover {
+  transform: scale(1.2);
+}
+
+.emoji-picker-container {
+  position: absolute;
+  bottom: 60px; /* Para que aparezca ENCIMA del botón */
+  right: 0;
+  z-index: 2000;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+  border-radius: 8px;
+}
+
+/* Ajuste para móvil: Centrar el picker si la pantalla es pequeña */
+@media (max-width: 768px) {
+  .emoji-picker-container {
+    right: -50px; /* Un poco más a la derecha en móviles */
+  }
+}
+
+/* =========================================
+   ESTILOS PARA EMOJI MART (NUEVO)
+   ========================================= */
+
+.emoji-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-right: 10px;
+}
+
+.emoji-btn {
+  background: transparent !important;
+  border: none !important;
+  font-size: 1.5rem !important;
+  cursor: pointer;
+  padding: 0 5px !important;
+  transition: transform 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.emoji-btn:hover {
+  transform: scale(1.2);
+}
+
+.emoji-picker-container {
+  position: absolute;
+  bottom: 60px;
+  right: 0;
+  z-index: 2005; /* Por encima de todo */
+  
+  /* Sombra suave para que flote bonito */
+  box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+  border-radius: 10px;
+  overflow: hidden; /* Para que el borde redondo se respete */
+}
+
+/* Ajuste móvil */
+@media (max-width: 768px) {
+  .emoji-picker-container {
+    right: -50px;
+  }
 }
